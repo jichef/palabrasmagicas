@@ -1,4 +1,4 @@
-// Palabras Nieve — app.js (DPR correcto, iOS táctil, solo letras, legible, reciclado)
+// Palabras Nieve — app.js (DPR correcto, iOS, solo letras, legible, reciclado, ARRÁSTRAR)
 
 // ==== Canvas y elementos ====
 const canvas = document.getElementById('game');
@@ -19,7 +19,7 @@ const shuffle = arr => arr.map(v=>[Math.random(),v]).sort((a,b)=>a[0]-b[0]).map(
 const up = s => s.toLocaleUpperCase('es-ES');
 function onlyLettersArray(word){
   const nfc = word.normalize('NFC');
-  return Array.from(nfc).filter(ch => /\p{L}/u.test(ch));
+  return Array.from(nfc).filter(ch => /\p{L}/u.test(ch)); // solo letras (incluye Ñ, tildes…)
 }
 
 // ==== Config ====
@@ -31,7 +31,7 @@ const CFG_BY_DIFF = {
 let CFG = CFG_BY_DIFF[difficultySel.value];
 
 const LETTER_FONT = '700 36px "Atkinson Hyperlegible", system-ui, sans-serif';
-const LETTER_SIZE = 40; // en píxeles CSS (no multiplicamos por DPR)
+const LETTER_SIZE = 40; // px CSS
 
 // ==== Estado ====
 let WORDS = {listas:{}};
@@ -87,7 +87,7 @@ function setupWord(word){
   winFlash = 0;
 
   const chars = onlyLettersArray(word);
-  const gaps = chars.map(ch => ({ ch: up(ch), x:0, y:0, w:40, h:56, filled:false }));
+  const gaps = chars.map(ch => ({ ch: up(ch), x:0, y:0, w:42, h:58, filled:false }));
 
   for(const g of gaps){
     const el = document.createElement('div');
@@ -265,7 +265,7 @@ function loop(t){
   requestAnimationFrame(loop);
 }
 
-// ==== Interacción (iOS robusto) ====
+// ==== Interacción — modo ARRÁSTRAR (sin “huir”) ====
 function addEventListeners(){
   window.addEventListener('resize', onResize);
 
@@ -280,72 +280,79 @@ function addEventListeners(){
   btnNext.addEventListener('click', ()=> nextWord());
   btnReset.addEventListener('click', ()=>{ refillQueue(); nextWord(); });
 
-  let dragging = false;
+  let draggingLetter = null;
 
   const getLocal = (clientX, clientY)=>{
     const r = canvas.getBoundingClientRect();
     return { x: clientX - r.left, y: clientY - r.top };
   };
 
-  const push = (x,y)=>{
+  const pickLetter = (x,y)=>{
+    // elige la letra más cercana bajo el dedo
+    let best = null, bestD2 = Infinity;
     for(const p of letters){
       if(p.locked) continue;
       const dx = p.x - x;
       const dy = p.y - y;
       const d2 = dx*dx + dy*dy;
-      const r = LETTER_SIZE*1.1;
-      if(d2 < r*r){
-        const d = Math.sqrt(d2) || 1;
-        const ux = dx/d, uy = dy/d;
-        p.vx += ux * 90;
-        p.vy += uy * 90;
+      if(d2 < bestD2 && d2 < (LETTER_SIZE*LETTER_SIZE*0.5)){
+        best = p; bestD2 = d2;
       }
+    }
+    if(best){
+      draggingLetter = best;
+      best.vx = best.vy = 0; // detener
     }
   };
 
-  // Pointer Events
+  const moveLetter = (x,y)=>{
+    if(draggingLetter){
+      draggingLetter.x = x;
+      draggingLetter.y = y;
+      draggingLetter.vx = draggingLetter.vy = 0;
+    }
+  };
+
+  const endDrag = ()=>{
+    draggingLetter = null;
+  };
+
+  // Pointer (iOS/Android/desktop modernos)
   canvas.addEventListener('pointerdown', (e)=>{
-    // en iOS algunos bugs con setPointerCapture; podemos omitirlo
-    dragging = true;
-    const {x,y} = getLocal(e.clientX, e.clientY);
-    push(x,y);
+    const {x,y} = getLocal(e.clientX,e.clientY);
+    pickLetter(x,y);
     e.preventDefault();
   }, {passive:false});
 
   canvas.addEventListener('pointermove', (e)=>{
-    if(!dragging) return;
-    const {x,y} = getLocal(e.clientX, e.clientY);
-    push(x,y);
+    if(!draggingLetter) return;
+    const {x,y} = getLocal(e.clientX,e.clientY);
+    moveLetter(x,y);
     e.preventDefault();
   }, {passive:false});
 
-  const endDrag = (e)=>{
-    dragging = false;
-    e.preventDefault();
-  };
   canvas.addEventListener('pointerup', endDrag, {passive:false});
   canvas.addEventListener('pointercancel', endDrag, {passive:false});
   canvas.addEventListener('pointerleave', endDrag, {passive:false});
 
-  // Fallback Touch (algunos iOS viejos no entregan bien pointermove)
+  // Fallback Touch (iOS viejos)
   canvas.addEventListener('touchstart', (e)=>{
-    dragging = true;
     const t = e.changedTouches[0];
-    const {x,y} = getLocal(t.clientX, t.clientY);
-    push(x,y);
+    const {x,y} = getLocal(t.clientX,t.clientY);
+    pickLetter(x,y);
     e.preventDefault();
   }, {passive:false});
 
   canvas.addEventListener('touchmove', (e)=>{
-    if(!dragging) return;
+    if(!draggingLetter) return;
     const t = e.changedTouches[0];
-    const {x,y} = getLocal(t.clientX, t.clientY);
-    push(x,y);
+    const {x,y} = getLocal(t.clientX,t.clientY);
+    moveLetter(x,y);
     e.preventDefault();
   }, {passive:false});
 
-  canvas.addEventListener('touchend', (e)=>{ dragging=false; e.preventDefault(); }, {passive:false});
-  canvas.addEventListener('touchcancel', (e)=>{ dragging=false; e.preventDefault(); }, {passive:false});
+  canvas.addEventListener('touchend', endDrag, {passive:false});
+  canvas.addEventListener('touchcancel', endDrag, {passive:false});
 
   // Recalcular posiciones de slots si cambia el layout
   const ro = new ResizeObserver(positionSlots);
@@ -353,17 +360,17 @@ function addEventListeners(){
 }
 
 function onResize(){
-  // Tamaño CSS del canvas (viewport disponible)
+  // tamaño CSS del canvas
   const rect = canvas.getBoundingClientRect();
   const cssW = rect.width;
   const cssH = rect.height;
 
-  // Ajuste de atributos reales con DPR para nitidez
+  // píxeles reales para nitidez
   DPR = Math.max(1, window.devicePixelRatio || 1);
   canvas.width  = Math.max(1, Math.floor(cssW * DPR));
   canvas.height = Math.max(1, Math.floor(cssH * DPR));
 
-  // Escalamos el contexto para dibujar en coordenadas CSS sin deformaciones
+  // dibujar en coordenadas CSS (evita deformaciones)
   ctx.setTransform(DPR, 0, 0, DPR, 0, 0);
 
   W = cssW;
