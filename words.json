@@ -1,0 +1,7 @@
+{
+  "listas": {
+    "animales": ["gato", "perro", "loro", "ratón", "vaca", "águila", "ballena", "jirafa"],
+    "clase": ["pizarra", "libro", "regla", "tijeras", "cola", "pegamento", "lápiz", "cuaderno"],
+    "naturaleza": ["árbol", "hoja", "flor", "cielo", "nube", "lluvia", "río", "montaña"]
+  }
+}
