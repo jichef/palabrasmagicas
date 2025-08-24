@@ -39,3 +39,9 @@ main{position:relative; flex:1; min-height:320px}
 }
 .ghost{opacity:.2}
 footer{padding:6px 10px; text-align:center; color:#cbd5e1}
+
+#game{
+  touch-action: none;   /* imprescindible en iOS */
+  -webkit-user-select: none;
+  user-select: none;
+}
