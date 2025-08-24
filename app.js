@@ -1,5 +1,5 @@
-// Palabras Nieve — app.js (versión legible + reciclado de letras)
-// Requiere que en index.html hayas añadido la fuente:
+// Palabras Nieve — app.js (solo letras, fuente legible, reciclado)
+// Asegúrate de tener en index.html la fuente:
 // <link href="https://fonts.googleapis.com/css2?family=Atkinson+Hyperlegible:wght@700&display=swap" rel="stylesheet">
 
 const canvas = document.getElementById('game');
@@ -16,7 +16,15 @@ let W = 0, H = 0, DPR = Math.max(1, devicePixelRatio || 1);
 const rand = (a,b)=>Math.random()*(b-a)+a;
 const clamp=(v,a,b)=>Math.max(a,Math.min(b,v));
 const shuffle = arr => arr.map(v=>[Math.random(),v]).sort((a,b)=>a[0]-b[0]).map(x=>x[1]);
-const up = s => s.toUpperCase();
+
+// Mayúsculas respetando español
+const up = s => s.toLocaleUpperCase('es-ES');
+
+// Normaliza a NFC y filtra SOLO letras Unicode (incluye Ñ, tildes, Ü…)
+function onlyLettersArray(word){
+  const nfc = word.normalize('NFC');
+  return Array.from(nfc).filter(ch => /\p{L}/u.test(ch));
+}
 
 // ---------- Config ----------
 const CFG_BY_DIFF = {
@@ -26,7 +34,6 @@ const CFG_BY_DIFF = {
 };
 let CFG = CFG_BY_DIFF[difficultySel.value];
 
-// ——— Legibilidad mejorada
 const LETTER_FONT = '700 36px "Atkinson Hyperlegible", system-ui, sans-serif';
 const LETTER_SIZE = 40; // caja aproximada para colisiones
 
@@ -83,7 +90,9 @@ function setupWord(word){
   slotsWrap.innerHTML = '';
   winFlash = 0;
 
-  const chars = [...word];
+  // Solo letras (sin espacios, guiones, signos…)
+  const chars = onlyLettersArray(word);
+
   const gaps = chars.map(ch => ({ ch: up(ch), x:0, y:0, w:40, h:56, filled:false }));
 
   for(const g of gaps){
@@ -92,7 +101,7 @@ function setupWord(word){
     el.dataset.ch = g.ch;
     const ghost = document.createElement('div');
     ghost.className = 'ghost';
-    ghost.textContent = g.ch;
+    ghost.textContent = g.ch;     // pista tenue (puedes quitarla si no quieres pista)
     el.appendChild(ghost);
     slotsWrap.appendChild(el);
   }
@@ -102,6 +111,7 @@ function setupWord(word){
 }
 
 function positionSlots(){
+  if(!current) return;
   const canvasRect = canvas.getBoundingClientRect();
   const els = [...slotsWrap.querySelectorAll('.slot')];
   els.forEach((el, i) => {
@@ -117,7 +127,8 @@ function positionSlots(){
 
 // ---------- Letras ----------
 function spawnLetter(){
-  if(!current) return;
+  if(!current || !current.targetSlots.length) return;
+
   const needed = current.targetSlots.filter(s=>!s.filled).map(s=>s.ch);
   const pool = needed.length ? needed : [ ...new Set(current.targetSlots.map(s=>s.ch)) ];
   const ch = pool[Math.floor(rand(0, pool.length))];
@@ -134,7 +145,6 @@ function spawnLetter(){
   });
 }
 
-// ——— Nuevo: reciclar al tocar el suelo
 function respawnLetter(p){
   p.locked = false;
   p.x = rand(LETTER_SIZE * 1.2, (W / DPR) - LETTER_SIZE * 1.2) * DPR;
@@ -159,7 +169,7 @@ function updateLetter(p, dt){
 
   trySnap(p);
 
-  // ——— En lugar de rebotar, vuelve a caer desde arriba
+  // Reciclar al tocar el suelo
   if(p.y > H - LETTER_SIZE*DPR){
     respawnLetter(p);
   }
@@ -230,7 +240,7 @@ function drawLetters(){
     ctx.arc(0,0, LETTER_SIZE*0.8*DPR, 0, Math.PI*2);
     ctx.fill();
 
-    // letra — más legible (blanco, contorno oscuro y sombra)
+    // letra legible
     ctx.fillStyle = '#ffffff';
     ctx.strokeStyle = '#1f2937';
     ctx.lineWidth = 3 * DPR;
@@ -287,6 +297,7 @@ function addEventListeners(){
     refillQueue(); nextWord();
   });
 
+  // Empuja letras con el dedo/ratón
   const push = (x,y)=>{
     const px = x * DPR, py = y * DPR;
     for(const p of letters){
