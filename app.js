@@ -1,4 +1,4 @@
-// Palabras Nieve — app.js (tipografía ajustada + letras desaparecen al encajar)
+// Palabras Nieve — app.js (siempre salen todas las letras necesarias)
 
 // ==== Canvas y elementos ====
 const canvas = document.getElementById('game');
@@ -18,8 +18,13 @@ const shuffle = arr => arr.map(v=>[Math.random(),v]).sort((a,b)=>a[0]-b[0]).map(
 
 const up = s => s.toLocaleUpperCase('es-ES');
 function onlyLettersArray(word){
-  const nfc = word.normalize('NFC');
+  const nfc = (word||'').normalize('NFC');
   return Array.from(nfc).filter(ch => /\p{L}/u.test(ch)); // solo letras
+}
+function countMap(arr){
+  const m = Object.create(null);
+  for(const x of arr){ m[x]=(m[x]||0)+1; }
+  return m;
 }
 
 // ==== Config ====
@@ -38,7 +43,7 @@ const LETTER_SIZE = 36;
 let WORDS = {listas:{}};
 let activeListName = null;
 let queue = [];
-let current = null;
+let current = null;   // { word, targetSlots[], filledCount, needLeft: {ch:n} }
 let letters = [];
 let lastSpawnAt = 0;
 let running = true;
@@ -124,7 +129,7 @@ function refillQueue(){
 }
 function nextWord(){
   if(queue.length===0) refillQueue();
-  const word = queue.shift();
+  const word = queue.shift() || '';
   setupWord(word);
 }
 function setupWord(word){
@@ -141,12 +146,15 @@ function setupWord(word){
     el.dataset.ch = g.ch;
     const ghost = document.createElement('div');
     ghost.className = 'ghost';
-    ghost.textContent = g.ch;
+    ghost.textContent = g.ch; // pista tenue
     el.appendChild(ghost);
     slotsWrap.appendChild(el);
   }
 
-  current = { word, targetSlots: gaps, filledCount:0 };
+  // mapa de necesidades restantes (cuántas de cada letra faltan)
+  const needLeft = countMap(gaps.map(g=>g.ch));
+
+  current = { word, targetSlots: gaps, filledCount:0, needLeft };
   positionSlots();
 }
 function positionSlots(){
@@ -163,11 +171,46 @@ function positionSlots(){
 }
 
 // ==== Letras ====
+// Cuenta en pantalla (no bloqueadas) por carácter
+function activeCountMap(){
+  const m = Object.create(null);
+  for(const l of letters){
+    const ch = l.ch;
+    m[ch] = (m[ch]||0) + 1;
+  }
+  return m;
+}
+
+// Elige una letra que tenga mayor déficit: needLeft[ch] - active[ch] > 0
+function pickNeededChar(){
+  if(!current) return null;
+  const need = current.needLeft;
+  const active = activeCountMap();
+  let best = null;
+  let bestDef = 0;
+  for(const ch of Object.keys(need)){
+    const deficit = need[ch] - (active[ch]||0);
+    if(deficit > bestDef){
+      bestDef = deficit;
+      best = ch;
+    }
+  }
+  return best; // puede ser null si no hay déficit
+}
+
 function spawnLetter(){
-  if(!current || !current.targetSlots.length) return;
-  const needed = current.targetSlots.filter(s=>!s.filled).map(s=>s.ch);
-  const pool = needed.length ? needed : [ ...new Set(current.targetSlots.map(s=>s.ch)) ];
-  const ch = pool[Math.floor(rand(0, pool.length))];
+  if(!current) return;
+
+  // intenta priorizar letras que faltan
+  let ch = pickNeededChar();
+
+  // si no hay ninguna pendiente, puedes spawnear una de cualquiera (ambiente)
+  if(!ch){
+    const uniques = [...new Set(current.targetSlots.map(s=>s.ch))];
+    if(uniques.length===0) return;
+    ch = uniques[Math.floor(rand(0, uniques.length))];
+  }
+
   const x = rand(LETTER_SIZE*1.2, W - LETTER_SIZE*1.2);
   letters.push({
     ch, x, y: -LETTER_SIZE,
@@ -177,17 +220,18 @@ function spawnLetter(){
     locked:false
   });
 }
+
 function respawnLetter(p){
-  p.locked = false;
+  // Solo recicla si aún quedan letras por encajar de su tipo
+  // (si no quedan, que siga cayendo como decoración)
   p.x = rand(LETTER_SIZE * 1.2, W - LETTER_SIZE * 1.2);
   p.y = -LETTER_SIZE;
   p.vx = rand(-CFG.wind, CFG.wind);
   p.vy = rand(10, 30);
   p.angle = rand(-Math.PI, Math.PI);
 }
-function updateLetter(p, dt){
-  if(p.locked) return;
 
+function updateLetter(p, dt){
   p.vy += CFG.gravity * dt;
   p.vx += rand(-CFG.wind, CFG.wind) * 0.15 * dt;
   p.vy = clamp(p.vy, -9999, CFG.maxFallSpeed);
@@ -203,8 +247,10 @@ function updateLetter(p, dt){
 
   if(p.y > H - LETTER_SIZE) respawnLetter(p);
 }
+
 function trySnap(p){
   if(!current) return;
+
   for(let i=0;i<current.targetSlots.length;i++){
     const s = current.targetSlots[i];
     if(s.filled) continue;
@@ -215,13 +261,17 @@ function trySnap(p){
     const nearY   = Math.abs((s.y + s.h/2) - cy) < (s.h*0.45);
 
     if(insideX && nearY){
-      // ✅ marcar hueco
+      // marcar hueco
       s.filled = true;
       slotsWrap.children[i].classList.add('ok');
       current.filledCount++;
 
-      // ✅ quitar la letra de la pantalla
-      letters = letters.filter(l => l !== p);
+      // actualizar necesidades
+      if(current.needLeft[p.ch] > 0) current.needLeft[p.ch]--;
+
+      // quitar la letra del lienzo
+      const idx = letters.indexOf(p);
+      if(idx >= 0) letters.splice(idx,1);
 
       // palabra completa
       if(current.filledCount === current.targetSlots.length){
@@ -251,13 +301,15 @@ function drawLetters(){
   for(const p of letters){
     ctx.save();
     ctx.translate(p.x, p.y);
-    ctx.rotate(p.angle * 0.05);
+    ctx.rotate(p.angle * 0.05); // menos giro → más nítidas
 
+    // halo
     ctx.fillStyle = 'rgba(255,255,255,0.08)';
     ctx.beginPath();
     ctx.arc(0,0, LETTER_SIZE*0.78, 0, Math.PI*2);
     ctx.fill();
 
+    // letra
     ctx.fillStyle = '#ffffff';
     ctx.strokeStyle = '#0f172a';
     ctx.lineWidth = 3;
@@ -285,15 +337,27 @@ function loop(t){
   updateStars(dt);
   drawStars();
 
+  // Política de spawn: mantener flujo y cubrir déficits
   if(current && (t - lastSpawnAt > CFG.spawnEveryMs)){
     lastSpawnAt = t;
-    const remain = current.targetSlots.length - current.filledCount;
-    const maxOnScreen = clamp(remain + 3, 4, 12);
-    const onScreen = letters.filter(l=>!l.locked).length;
-    if(onScreen < maxOnScreen) spawnLetter();
+
+    // límite de letras simultáneas en pantalla (no bloqueadas)
+    const remain = current ? (current.targetSlots.length - current.filledCount) : 0;
+    const onScreen = letters.length;
+
+    // sube el techo para asegurar aparición de todas las pendientes
+    const maxOnScreen = Math.max(6, remain + 4);
+
+    if(onScreen < maxOnScreen) {
+      spawnLetter();
+    }
   }
 
-  for(const p of letters) updateLetter(p, dt);
+  // actualizar letras
+  for(let i=0;i<letters.length;i++){
+    updateLetter(letters[i], dt);
+  }
+
   drawLetters();
   requestAnimationFrame(loop);
 }
@@ -316,7 +380,6 @@ function addEventListeners(){
   const pickLetter = (x,y)=>{
     let best=null,bestD2=Infinity;
     for(const p of letters){
-      if(p.locked) continue;
       const dx=p.x-x, dy=p.y-y, d2=dx*dx+dy*dy;
       if(d2<bestD2 && d2<(LETTER_SIZE*LETTER_SIZE*0.5)){ best=p; bestD2=d2; }
     }
