@@ -1,0 +1,41 @@
+:root{
+  --bg:#0b1526;      /* noche */
+  --snow:#eef6ff;    /* nieve */
+  --slot:#e2e8f0;
+  --slot-ok:#b7f0c1;
+  --ui:#ffffff22;
+  --accent:#7dd3fc;
+}
+*{box-sizing:border-box}
+html,body{height:100%;margin:0}
+body{
+  background: radial-gradient(1200px 800px at 50% -200px, #0f2344 0%, var(--bg) 60%, #060b15 100%);
+  color:#fff; font-family: system-ui, -apple-system, Segoe UI, Roboto, sans-serif;
+  display:flex; flex-direction:column; gap:8px;
+}
+header{display:flex; align-items:center; justify-content:space-between; padding:10px 14px;}
+h1{margin:0; font-size:clamp(18px, 2.5vw, 28px)}
+.controls{display:flex; gap:8px; align-items:center; flex-wrap:wrap}
+label{background:var(--ui); padding:6px 10px; border-radius:8px}
+button, select{background:#16243c; color:#fff; border:1px solid #334155; border-radius:8px; padding:6px 10px}
+button:hover, select:hover{outline:1px solid var(--accent)}
+main{position:relative; flex:1; min-height:320px}
+#game{position:absolute; inset:0; width:100%; height:100%}
+#wordSlots{
+  position:absolute; left:50%; bottom:22px; transform:translateX(-50%);
+  display:flex; gap:8px; padding:6px 10px; border-radius:12px;
+  background:#00000030; backdrop-filter: blur(4px);
+}
+.slot{
+  width:40px; height:56px; border-radius:10px; border:2px dashed #94a3b8;
+  display:grid; place-items:center; color:#111; font-weight:800; font-size:26px;
+  background:linear-gradient(#f8fafc, #e2e8f0);
+  text-transform:uppercase;
+}
+.slot.ok{
+  background:linear-gradient(var(--slot-ok), #9fe6ad);
+  border-style:solid; border-color:#16a34a;
+  transform: translateY(-2px);
+}
+.ghost{opacity:.2}
+footer{padding:6px 10px; text-align:center; color:#cbd5e1}
