@@ -1,4 +1,4 @@
-// Palabras Nieve — app.js (tipografía ultra legible + arrastrar + estrellas + iOS OK)
+// Palabras Nieve — app.js (tipografía ajustada + letras desaparecen al encajar)
 
 // ==== Canvas y elementos ====
 const canvas = document.getElementById('game');
@@ -19,7 +19,7 @@ const shuffle = arr => arr.map(v=>[Math.random(),v]).sort((a,b)=>a[0]-b[0]).map(
 const up = s => s.toLocaleUpperCase('es-ES');
 function onlyLettersArray(word){
   const nfc = word.normalize('NFC');
-  return Array.from(nfc).filter(ch => /\p{L}/u.test(ch)); // solo letras (incluye Ñ y tildes)
+  return Array.from(nfc).filter(ch => /\p{L}/u.test(ch)); // solo letras
 }
 
 // ==== Config ====
@@ -30,15 +30,15 @@ const CFG_BY_DIFF = {
 };
 let CFG = CFG_BY_DIFF[difficultySel.value];
 
-// Tipografía del sistema muy legible y grande (evita cargas web y borrosidad)
-const LETTER_FONT = 'bold 44px "Arial Black", Verdana, sans-serif';
-const LETTER_SIZE = 46; // px CSS (coherente con el font)
+// Fuente muy legible, tamaño moderado
+const LETTER_FONT = 'bold 34px "Arial Black", Verdana, sans-serif';
+const LETTER_SIZE = 36;
 
 // ==== Estado ====
 let WORDS = {listas:{}};
 let activeListName = null;
 let queue = [];
-let current = null;     // { word, targetSlots[], filledCount }
+let current = null;
 let letters = [];
 let lastSpawnAt = 0;
 let running = true;
@@ -215,13 +215,15 @@ function trySnap(p){
     const nearY   = Math.abs((s.y + s.h/2) - cy) < (s.h*0.45);
 
     if(insideX && nearY){
-      p.locked = true;
-      p.x = s.x + s.w/2;
-      p.y = s.y + s.h/2;
-      p.vx = p.vy = 0;
+      // ✅ marcar hueco
       s.filled = true;
       slotsWrap.children[i].classList.add('ok');
       current.filledCount++;
+
+      // ✅ quitar la letra de la pantalla
+      letters = letters.filter(l => l !== p);
+
+      // palabra completa
       if(current.filledCount === current.targetSlots.length){
         winFlash = 1.0;
         setTimeout(nextWord, 1200);
@@ -249,24 +251,21 @@ function drawLetters(){
   for(const p of letters){
     ctx.save();
     ctx.translate(p.x, p.y);
-    ctx.rotate(p.angle * 0.05);      // MENOS ROTACIÓN → más nítidas
+    ctx.rotate(p.angle * 0.05);
 
-    // halo suave
     ctx.fillStyle = 'rgba(255,255,255,0.08)';
     ctx.beginPath();
     ctx.arc(0,0, LETTER_SIZE*0.78, 0, Math.PI*2);
     ctx.fill();
 
-    // letra muy contrastada
     ctx.fillStyle = '#ffffff';
-    ctx.strokeStyle = '#0f172a';     // contorno oscuro
+    ctx.strokeStyle = '#0f172a';
     ctx.lineWidth = 3;
     ctx.shadowColor = 'rgba(0,0,0,0.35)';
     ctx.shadowBlur = 5;
     ctx.shadowOffsetX = 0;
     ctx.shadowOffsetY = 1;
 
-    // pequeño ajuste vertical para centrado óptico
     ctx.fillText(p.ch, 0, 3);
     ctx.strokeText(p.ch, 0, 3);
 
@@ -299,7 +298,7 @@ function loop(t){
   requestAnimationFrame(loop);
 }
 
-// ==== Interacción (arrastrar, sin “huir”) ====
+// ==== Interacción (arrastrar) ====
 function addEventListeners(){
   window.addEventListener('resize', onResize);
   listSelect.addEventListener('change', ()=>{ activeListName = listSelect.value; refillQueue(); nextWord(); });
@@ -334,14 +333,11 @@ function addEventListeners(){
 
   const endDrag=()=>{ draggingLetter=null; };
 
-  // Pointer (moderno)
   canvas.addEventListener('pointerdown', e=>{const {x,y}=getLocal(e.clientX,e.clientY); pickLetter(x,y); e.preventDefault();},{passive:false});
   canvas.addEventListener('pointermove', e=>{if(!draggingLetter)return; const {x,y}=getLocal(e.clientX,e.clientY); moveLetter(x,y); e.preventDefault();},{passive:false});
   canvas.addEventListener('pointerup', endDrag,{passive:false});
   canvas.addEventListener('pointercancel', endDrag,{passive:false});
   canvas.addEventListener('pointerleave', endDrag,{passive:false});
-
-  // Fallback touch (iOS antiguos)
   canvas.addEventListener('touchstart', e=>{const t=e.changedTouches[0]; const {x,y}=getLocal(t.clientX,t.clientY); pickLetter(x,y); e.preventDefault();},{passive:false});
   canvas.addEventListener('touchmove', e=>{if(!draggingLetter)return; const t=e.changedTouches[0]; const {x,y}=getLocal(t.clientX,t.clientY); moveLetter(x,y); e.preventDefault();},{passive:false});
   canvas.addEventListener('touchend', endDrag,{passive:false});
@@ -359,7 +355,6 @@ function onResize(){
   canvas.width  = Math.max(1, Math.floor(cssW * DPR));
   canvas.height = Math.max(1, Math.floor(cssH * DPR));
 
-  // Dibujar en coordenadas CSS (evita deformación y mantiene nitidez)
   ctx.setTransform(DPR, 0, 0, DPR, 0, 0);
 
   W = cssW; H = cssH;
