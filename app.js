@@ -1,5 +1,6 @@
-// Palabras Nieve — sin librerías — Canvas 2D + DOM para huecos
-// by Juan & ChatGPT
+// Palabras Nieve — app.js (versión legible + reciclado de letras)
+// Requiere que en index.html hayas añadido la fuente:
+// <link href="https://fonts.googleapis.com/css2?family=Atkinson+Hyperlegible:wght@700&display=swap" rel="stylesheet">
 
 const canvas = document.getElementById('game');
 const ctx = canvas.getContext('2d');
@@ -15,33 +16,31 @@ let W = 0, H = 0, DPR = Math.max(1, devicePixelRatio || 1);
 const rand = (a,b)=>Math.random()*(b-a)+a;
 const clamp=(v,a,b)=>Math.max(a,Math.min(b,v));
 const shuffle = arr => arr.map(v=>[Math.random(),v]).sort((a,b)=>a[0]-b[0]).map(x=>x[1]);
-
-// Normaliza: opcional si quieres “ignorar acentos” al decidir el hueco correcto.
-// Aquí decidimos NO ignorarlos: 'Á' va a su hueco 'Á' (mejor pedagógicamente).
 const up = s => s.toUpperCase();
 
 // ---------- Config ----------
 const CFG_BY_DIFF = {
-  "suave":   { gravity: 18, wind: 6, spawnEveryMs: 900, maxFallSpeed: 160 },
+  "suave":   { gravity: 18, wind: 6,  spawnEveryMs: 900, maxFallSpeed: 160 },
   "media":   { gravity: 28, wind: 10, spawnEveryMs: 720, maxFallSpeed: 220 },
   "rápida":  { gravity: 40, wind: 14, spawnEveryMs: 540, maxFallSpeed: 300 }
 };
 let CFG = CFG_BY_DIFF[difficultySel.value];
 
-const LETTER_FONT = 'bold 28px ui-sans-serif';
-const LETTER_SIZE = 34; // caja aproximada para colisiones
+// ——— Legibilidad mejorada
+const LETTER_FONT = '700 36px "Atkinson Hyperlegible", system-ui, sans-serif';
+const LETTER_SIZE = 40; // caja aproximada para colisiones
 
 // ---------- Estado ----------
 let WORDS = {listas:{}};
 let activeListName = null;
-let queue = [];        // cola de palabras pendientes
+let queue = [];
 let current = null;    // { word, targetSlots[], filledCount }
-let letters = [];      // partículas que caen
+let letters = [];
 let lastSpawnAt = 0;
 let running = true;
 let winFlash = 0;
 
-// ---------- Carga JSON ----------
+// ---------- Inicialización ----------
 (async function init(){
   await loadWords();
   buildListSelect();
@@ -80,23 +79,17 @@ function nextWord(){
 }
 
 function setupWord(word){
-  // Reset
   letters.length = 0;
   slotsWrap.innerHTML = '';
   winFlash = 0;
 
-  const chars = [...word]; // conserva acentos
-  const gaps = chars.map((ch, i) => ({
-    ch: up(ch),
-    x: 0, y: 0, w: 40, h: 56, filled:false
-  }));
+  const chars = [...word];
+  const gaps = chars.map(ch => ({ ch: up(ch), x:0, y:0, w:40, h:56, filled:false }));
 
-  // Construye los “huecos” visuales (DOM) centrados
   for(const g of gaps){
     const el = document.createElement('div');
     el.className = 'slot';
     el.dataset.ch = g.ch;
-    // “ghost” muestra la letra en bajísima opacidad a modo de pista (opcional):
     const ghost = document.createElement('div');
     ghost.className = 'ghost';
     ghost.textContent = g.ch;
@@ -105,18 +98,11 @@ function setupWord(word){
   }
 
   current = { word, targetSlots: gaps, filledCount:0 };
-
   positionSlots();
 }
 
 function positionSlots(){
-  // calcula posiciones absolutas de los slots en relación al canvas
-  const rect = slotsWrap.getBoundingClientRect();
   const canvasRect = canvas.getBoundingClientRect();
-  const dx = rect.left - canvasRect.left;
-  const dy = rect.top  - canvasRect.top;
-
-  // Escribe coordenadas en 'current'
   const els = [...slotsWrap.querySelectorAll('.slot')];
   els.forEach((el, i) => {
     const r = el.getBoundingClientRect();
@@ -129,10 +115,9 @@ function positionSlots(){
   });
 }
 
-// ---------- Letras que caen ----------
+// ---------- Letras ----------
 function spawnLetter(){
   if(!current) return;
-  // Genera letras de la palabra mezcladas; si ya hay suficientes para llenar, añade algunas de relleno suaves
   const needed = current.targetSlots.filter(s=>!s.filled).map(s=>s.ch);
   const pool = needed.length ? needed : [ ...new Set(current.targetSlots.map(s=>s.ch)) ];
   const ch = pool[Math.floor(rand(0, pool.length))];
@@ -149,10 +134,19 @@ function spawnLetter(){
   });
 }
 
+// ——— Nuevo: reciclar al tocar el suelo
+function respawnLetter(p){
+  p.locked = false;
+  p.x = rand(LETTER_SIZE * 1.2, (W / DPR) - LETTER_SIZE * 1.2) * DPR;
+  p.y = -LETTER_SIZE * DPR;
+  p.vx = rand(-CFG.wind, CFG.wind) * DPR;
+  p.vy = rand(10, 30) * DPR;
+  p.angle = rand(-Math.PI, Math.PI);
+}
+
 function updateLetter(p, dt){
   if(p.locked) return;
 
-  // Física simple
   p.vy += CFG.gravity * dt * DPR;
   p.vx += rand(-CFG.wind, CFG.wind) * 0.15 * dt * DPR;
   p.vy = clamp(p.vy, -9999, CFG.maxFallSpeed*DPR);
@@ -160,18 +154,14 @@ function updateLetter(p, dt){
   p.y += p.vy * dt;
   p.angle += 0.6 * dt;
 
-  // Paredes
   if(p.x < LETTER_SIZE*0.6*DPR){ p.x=LETTER_SIZE*0.6*DPR; p.vx = Math.abs(p.vx)*0.4; }
   if(p.x > W-LETTER_SIZE*0.6*DPR){ p.x=W-LETTER_SIZE*0.6*DPR; p.vx = -Math.abs(p.vx)*0.4; }
 
-  // ¿Encaja en algún hueco?
   trySnap(p);
 
-  // Suelo: si no encaja, rebota leve y vuelve a subir un poco (para que no se amontonen)
+  // ——— En lugar de rebotar, vuelve a caer desde arriba
   if(p.y > H - LETTER_SIZE*DPR){
-    p.y = H - LETTER_SIZE*DPR;
-    p.vy = -Math.abs(p.vy)*0.35;
-    p.vx *= 0.7;
+    respawnLetter(p);
   }
 }
 
@@ -183,13 +173,11 @@ function trySnap(p){
     if(s.filled) continue;
     if(p.ch !== s.ch) continue;
 
-    // Simple colisión centro-en-rectángulo
     const cx = p.x, cy = p.y;
     const insideX = (cx > s.x + 6*DPR) && (cx < s.x + s.w - 6*DPR);
     const nearY   = Math.abs((s.y + s.h/2) - cy) < (s.h*0.45);
 
     if(insideX && nearY){
-      // Encaja
       p.locked = true;
       p.x = s.x + s.w/2;
       p.y = s.y + s.h/2;
@@ -199,7 +187,6 @@ function trySnap(p){
       current.filledCount++;
 
       if(current.filledCount === current.targetSlots.length){
-        // Ganado
         winFlash = 1.0;
         setTimeout(nextWord, 1200);
       }
@@ -210,14 +197,12 @@ function trySnap(p){
 
 // ---------- Render ----------
 function drawBackground(){
-  // Nieve tenue de fondo
   ctx.clearRect(0,0,W,H);
   if(winFlash>0){
     ctx.fillStyle = `rgba(125,211,252,${winFlash*0.6})`;
     ctx.fillRect(0,0,W,H);
     winFlash = Math.max(0, winFlash - 0.04);
   }
-  // Estrellas puntuales
   ctx.save();
   ctx.globalAlpha = 0.25;
   for(let i=0;i<60;i++){
@@ -238,17 +223,24 @@ function drawLetters(){
     ctx.save();
     ctx.translate(p.x, p.y);
     ctx.rotate(p.angle*0.15);
+
     // halo
     ctx.fillStyle = 'rgba(255,255,255,0.08)';
     ctx.beginPath();
     ctx.arc(0,0, LETTER_SIZE*0.8*DPR, 0, Math.PI*2);
     ctx.fill();
-    // letra
-    ctx.fillStyle = '#eef6ff';
-    ctx.strokeStyle = '#64748b';
-    ctx.lineWidth = 2*DPR;
-    ctx.fillText(p.ch, 0, 4*DPR);
-    ctx.strokeText(p.ch, 0, 4*DPR);
+
+    // letra — más legible (blanco, contorno oscuro y sombra)
+    ctx.fillStyle = '#ffffff';
+    ctx.strokeStyle = '#1f2937';
+    ctx.lineWidth = 3 * DPR;
+    ctx.shadowColor = 'rgba(0,0,0,0.35)';
+    ctx.shadowBlur = 6 * DPR;
+    ctx.shadowOffsetX = 0;
+    ctx.shadowOffsetY = 1 * DPR;
+    ctx.fillText(p.ch, 0, 4 * DPR);
+    ctx.strokeText(p.ch, 0, 4 * DPR);
+
     ctx.restore();
   }
   ctx.restore();
@@ -258,30 +250,24 @@ function drawLetters(){
 let lastTime = performance.now();
 function loop(t){
   if(!running){ requestAnimationFrame(loop); return; }
-  const dt = Math.min(0.033, (t - lastTime)/1000); // cap 30ms
+  const dt = Math.min(0.033, (t - lastTime)/1000);
   lastTime = t;
 
   drawBackground();
 
-  // Spawn
-  if(current){
-    if(t - lastSpawnAt > CFG.spawnEveryMs){
-      lastSpawnAt = t;
-      // No spawnear infinito: controla cuántas simultáneas si ya casi está completo
-      const remain = current.targetSlots.length - current.filledCount;
-      const maxOnScreen = clamp(remain + 3, 4, 12);
-      const onScreen = letters.filter(l=>!l.locked).length;
-      if(onScreen < maxOnScreen) spawnLetter();
-    }
+  if(current && (t - lastSpawnAt > CFG.spawnEveryMs)){
+    lastSpawnAt = t;
+    const remain = current.targetSlots.length - current.filledCount;
+    const maxOnScreen = clamp(remain + 3, 4, 12);
+    const onScreen = letters.filter(l=>!l.locked).length;
+    if(onScreen < maxOnScreen) spawnLetter();
   }
 
-  // Update
   for(const p of letters){
     updateLetter(p, dt);
   }
 
   drawLetters();
-
   requestAnimationFrame(loop);
 }
 
@@ -301,7 +287,6 @@ function addEventListeners(){
     refillQueue(); nextWord();
   });
 
-  // Empujar letras con pointer (ratón o dedo)
   const push = (x,y)=>{
     const px = x * DPR, py = y * DPR;
     for(const p of letters){
@@ -328,7 +313,6 @@ function addEventListeners(){
     push(e.clientX-rect.left, e.clientY-rect.top);
   });
 
-  // Recalcular posiciones de slots si cambia el layout (por ejemplo, orientación)
   const ro = new ResizeObserver(positionSlots);
   ro.observe(slotsWrap);
 }
@@ -340,7 +324,6 @@ function onResize(){
   H = Math.floor(rect.height * DPR);
   canvas.width = W; canvas.height = H;
   ctx.setTransform(1,0,0,1,0,0);
-  ctx.scale(1,1);
   positionSlots();
 }
 
