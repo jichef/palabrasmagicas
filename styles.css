@@ -1,47 +1,94 @@
 :root{
   --bg:#0b1526;      /* noche */
-  --snow:#eef6ff;    /* nieve */
-  --slot:#e2e8f0;
+  --snow:#eef6ff;    /* nieve/letras */
+  --slot-bg:#f1f5f9;
+  --slot-bg-2:#e2e8f0;
+  --slot-border:#94a3b8;
   --slot-ok:#b7f0c1;
   --ui:#ffffff22;
   --accent:#7dd3fc;
 }
+
 *{box-sizing:border-box}
 html,body{height:100%;margin:0}
+
 body{
   background: radial-gradient(1200px 800px at 50% -200px, #0f2344 0%, var(--bg) 60%, #060b15 100%);
-  color:#fff; font-family: system-ui, -apple-system, Segoe UI, Roboto, sans-serif;
+  color:#fff;
+  font-family: system-ui, -apple-system, Segoe UI, Roboto, "Atkinson Hyperlegible", sans-serif;
   display:flex; flex-direction:column; gap:8px;
 }
-header{display:flex; align-items:center; justify-content:space-between; padding:10px 14px;}
+
+/* ---------- Cabecera / Controles ---------- */
+header{
+  display:flex; align-items:center; justify-content:space-between;
+  padding:10px 14px; gap:12px; flex-wrap:wrap;
+}
 h1{margin:0; font-size:clamp(18px, 2.5vw, 28px)}
 .controls{display:flex; gap:8px; align-items:center; flex-wrap:wrap}
-label{background:var(--ui); padding:6px 10px; border-radius:8px}
-button, select{background:#16243c; color:#fff; border:1px solid #334155; border-radius:8px; padding:6px 10px}
+label{
+  background:var(--ui);
+  padding:6px 10px; border-radius:8px;
+  display:flex; gap:8px; align-items:center;
+}
+button, select{
+  background:#16243c; color:#fff;
+  border:1px solid #334155; border-radius:8px;
+  padding:6px 10px; font-weight:600;
+}
 button:hover, select:hover{outline:1px solid var(--accent)}
+
+/* ---------- Lienzo / Zona de juego ---------- */
 main{position:relative; flex:1; min-height:320px}
-#game{position:absolute; inset:0; width:100%; height:100%}
+
+/* El canvas ocupa todo el main y acepta el dedo en iOS sin zoom/scroll */
+#game{
+  position:absolute; inset:0; width:100%; height:100%;
+  touch-action:none;              /* iOS: imprescindible para pointer/touch */
+  -webkit-user-select:none; user-select:none;
+  -webkit-touch-callout:none;
+}
+
+/* ---------- Huecos de la palabra ---------- */
 #wordSlots{
   position:absolute; left:50%; bottom:22px; transform:translateX(-50%);
   display:flex; gap:8px; padding:6px 10px; border-radius:12px;
   background:#00000030; backdrop-filter: blur(4px);
 }
+
 .slot{
-  width:40px; height:56px; border-radius:10px; border:2px dashed #94a3b8;
-  display:grid; place-items:center; color:#111; font-weight:800; font-size:26px;
-  background:linear-gradient(#f8fafc, #e2e8f0);
+  width:42px; height:58px;
+  border-radius:10px;
+  border:2px dashed var(--slot-border);
+  display:grid; place-items:center;
+  color:#111; font-weight:800; font-size:26px;
+  background:linear-gradient(var(--slot-bg), var(--slot-bg-2));
   text-transform:uppercase;
+  font-family: "Atkinson Hyperlegible", system-ui, -apple-system, Segoe UI, Roboto, sans-serif;
 }
+
 .slot.ok{
   background:linear-gradient(var(--slot-ok), #9fe6ad);
   border-style:solid; border-color:#16a34a;
   transform: translateY(-2px);
+  transition: transform .12s ease, background .2s ease;
 }
-.ghost{opacity:.2}
-footer{padding:6px 10px; text-align:center; color:#cbd5e1}
 
-#game{
-  touch-action: none;   /* imprescindible en iOS */
-  -webkit-user-select: none;
-  user-select: none;
+/* “Pista” tenue dentro del hueco (se puede quitar si no quieres pista) */
+.ghost{
+  opacity:.26;
+  letter-spacing:.5px;
+}
+
+/* ---------- Pie de página ---------- */
+footer{
+  padding:6px 10px; text-align:center; color:#cbd5e1;
+  font-size:14px;
+}
+
+/* ---------- Pequeños ajustes responsive ---------- */
+@media (max-width: 540px){
+  .slot{ width:38px; height:54px; font-size:24px }
+  #wordSlots{ bottom:14px; gap:6px; padding:6px 8px }
+  button, select{ padding:6px 8px }
 }
