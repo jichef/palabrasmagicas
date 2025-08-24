@@ -1,0 +1,41 @@
+<!DOCTYPE html>
+<html lang="es">
+<head>
+  <meta charset="utf-8" />
+  <meta name="viewport" content="width=device-width,initial-scale=1,viewport-fit=cover" />
+  <title>Palabras Nieve</title>
+  <link rel="stylesheet" href="styles.css">
+</head>
+<body>
+  <header>
+    <h1>Palabras Nieve</h1>
+    <div class="controls">
+      <label>
+        Lista:
+        <select id="listSelect"></select>
+      </label>
+      <label>
+        Dificultad:
+        <select id="difficulty">
+          <option value="suave">Suave</option>
+          <option value="media" selected>Media</option>
+          <option value="rápida">Rápida</option>
+        </select>
+      </label>
+      <button id="btnNext">Siguiente palabra</button>
+      <button id="btnReset">Reiniciar</button>
+    </div>
+  </header>
+
+  <main>
+    <canvas id="game"></canvas>
+    <div id="wordSlots" aria-live="polite"></div>
+  </main>
+
+  <footer>
+    <small>Arrastra o empuja letras con el dedo/ratón. Cuando encaje cada letra, se fijará en su hueco.</small>
+  </footer>
+
+  <script src="app.js" type="module"></script>
+</body>
+</html>
