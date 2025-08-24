@@ -1,7 +1,6 @@
-// Palabras Nieve — app.js (solo letras, fuente legible, reciclado)
-// Asegúrate de tener en index.html la fuente:
-// <link href="https://fonts.googleapis.com/css2?family=Atkinson+Hyperlegible:wght@700&display=swap" rel="stylesheet">
+// Palabras Nieve — app.js (solo letras, fuente legible, reciclado, iOS touch)
 
+// ==== Canvas y elementos ====
 const canvas = document.getElementById('game');
 const ctx = canvas.getContext('2d');
 const slotsWrap = document.getElementById('wordSlots');
@@ -12,21 +11,18 @@ const difficultySel = document.getElementById('difficulty');
 
 let W = 0, H = 0, DPR = Math.max(1, devicePixelRatio || 1);
 
-// ---------- Utilidades ----------
+// ==== Utilidades ====
 const rand = (a,b)=>Math.random()*(b-a)+a;
 const clamp=(v,a,b)=>Math.max(a,Math.min(b,v));
 const shuffle = arr => arr.map(v=>[Math.random(),v]).sort((a,b)=>a[0]-b[0]).map(x=>x[1]);
 
-// Mayúsculas respetando español
 const up = s => s.toLocaleUpperCase('es-ES');
-
-// Normaliza a NFC y filtra SOLO letras Unicode (incluye Ñ, tildes, Ü…)
 function onlyLettersArray(word){
   const nfc = word.normalize('NFC');
   return Array.from(nfc).filter(ch => /\p{L}/u.test(ch));
 }
 
-// ---------- Config ----------
+// ==== Config ====
 const CFG_BY_DIFF = {
   "suave":   { gravity: 18, wind: 6,  spawnEveryMs: 900, maxFallSpeed: 160 },
   "media":   { gravity: 28, wind: 10, spawnEveryMs: 720, maxFallSpeed: 220 },
@@ -35,19 +31,19 @@ const CFG_BY_DIFF = {
 let CFG = CFG_BY_DIFF[difficultySel.value];
 
 const LETTER_FONT = '700 36px "Atkinson Hyperlegible", system-ui, sans-serif';
-const LETTER_SIZE = 40; // caja aproximada para colisiones
+const LETTER_SIZE = 40;
 
-// ---------- Estado ----------
+// ==== Estado ====
 let WORDS = {listas:{}};
 let activeListName = null;
 let queue = [];
-let current = null;    // { word, targetSlots[], filledCount }
+let current = null;
 let letters = [];
 let lastSpawnAt = 0;
 let running = true;
 let winFlash = 0;
 
-// ---------- Inicialización ----------
+// ==== Init ====
 (async function init(){
   await loadWords();
   buildListSelect();
@@ -73,7 +69,7 @@ function buildListSelect(){
   listSelect.value = activeListName;
 }
 
-// ---------- Palabras / huecos ----------
+// ==== Palabras ====
 function refillQueue(){
   if(!activeListName) return;
   queue = shuffle(WORDS.listas[activeListName].slice());
@@ -90,9 +86,7 @@ function setupWord(word){
   slotsWrap.innerHTML = '';
   winFlash = 0;
 
-  // Solo letras (sin espacios, guiones, signos…)
   const chars = onlyLettersArray(word);
-
   const gaps = chars.map(ch => ({ ch: up(ch), x:0, y:0, w:40, h:56, filled:false }));
 
   for(const g of gaps){
@@ -101,7 +95,7 @@ function setupWord(word){
     el.dataset.ch = g.ch;
     const ghost = document.createElement('div');
     ghost.className = 'ghost';
-    ghost.textContent = g.ch;     // pista tenue (puedes quitarla si no quieres pista)
+    ghost.textContent = g.ch;
     el.appendChild(ghost);
     slotsWrap.appendChild(el);
   }
@@ -125,10 +119,9 @@ function positionSlots(){
   });
 }
 
-// ---------- Letras ----------
+// ==== Letras ====
 function spawnLetter(){
   if(!current || !current.targetSlots.length) return;
-
   const needed = current.targetSlots.filter(s=>!s.filled).map(s=>s.ch);
   const pool = needed.length ? needed : [ ...new Set(current.targetSlots.map(s=>s.ch)) ];
   const ch = pool[Math.floor(rand(0, pool.length))];
@@ -169,7 +162,6 @@ function updateLetter(p, dt){
 
   trySnap(p);
 
-  // Reciclar al tocar el suelo
   if(p.y > H - LETTER_SIZE*DPR){
     respawnLetter(p);
   }
@@ -177,16 +169,13 @@ function updateLetter(p, dt){
 
 function trySnap(p){
   if(!current) return;
-
   for(let i=0;i<current.targetSlots.length;i++){
     const s = current.targetSlots[i];
     if(s.filled) continue;
     if(p.ch !== s.ch) continue;
-
     const cx = p.x, cy = p.y;
     const insideX = (cx > s.x + 6*DPR) && (cx < s.x + s.w - 6*DPR);
     const nearY   = Math.abs((s.y + s.h/2) - cy) < (s.h*0.45);
-
     if(insideX && nearY){
       p.locked = true;
       p.x = s.x + s.w/2;
@@ -195,7 +184,6 @@ function trySnap(p){
       s.filled = true;
       slotsWrap.children[i].classList.add('ok');
       current.filledCount++;
-
       if(current.filledCount === current.targetSlots.length){
         winFlash = 1.0;
         setTimeout(nextWord, 1200);
@@ -205,7 +193,7 @@ function trySnap(p){
   }
 }
 
-// ---------- Render ----------
+// ==== Render ====
 function drawBackground(){
   ctx.clearRect(0,0,W,H);
   if(winFlash>0){
@@ -233,14 +221,10 @@ function drawLetters(){
     ctx.save();
     ctx.translate(p.x, p.y);
     ctx.rotate(p.angle*0.15);
-
-    // halo
     ctx.fillStyle = 'rgba(255,255,255,0.08)';
     ctx.beginPath();
     ctx.arc(0,0, LETTER_SIZE*0.8*DPR, 0, Math.PI*2);
     ctx.fill();
-
-    // letra legible
     ctx.fillStyle = '#ffffff';
     ctx.strokeStyle = '#1f2937';
     ctx.lineWidth = 3 * DPR;
@@ -250,13 +234,12 @@ function drawLetters(){
     ctx.shadowOffsetY = 1 * DPR;
     ctx.fillText(p.ch, 0, 4 * DPR);
     ctx.strokeText(p.ch, 0, 4 * DPR);
-
     ctx.restore();
   }
   ctx.restore();
 }
 
-// ---------- Bucle ----------
+// ==== Bucle ====
 let lastTime = performance.now();
 function loop(t){
   if(!running){ requestAnimationFrame(loop); return; }
@@ -264,7 +247,6 @@ function loop(t){
   lastTime = t;
 
   drawBackground();
-
   if(current && (t - lastSpawnAt > CFG.spawnEveryMs)){
     lastSpawnAt = t;
     const remain = current.targetSlots.length - current.filledCount;
@@ -272,18 +254,15 @@ function loop(t){
     const onScreen = letters.filter(l=>!l.locked).length;
     if(onScreen < maxOnScreen) spawnLetter();
   }
-
-  for(const p of letters){
-    updateLetter(p, dt);
-  }
-
+  for(const p of letters) updateLetter(p, dt);
   drawLetters();
   requestAnimationFrame(loop);
 }
 
-// ---------- Interacción ----------
+// ==== Interacción (iOS incluido) ====
 function addEventListeners(){
   window.addEventListener('resize', onResize);
+
   listSelect.addEventListener('change', ()=>{
     activeListName = listSelect.value;
     refillQueue();
@@ -297,7 +276,11 @@ function addEventListeners(){
     refillQueue(); nextWord();
   });
 
-  // Empuja letras con el dedo/ratón
+  let dragging = false;
+  const getLocal = (e)=>{
+    const rect = canvas.getBoundingClientRect();
+    return { x: e.clientX - rect.left, y: e.clientY - rect.top };
+  };
   const push = (x,y)=>{
     const px = x * DPR, py = y * DPR;
     for(const p of letters){
@@ -314,15 +297,27 @@ function addEventListeners(){
       }
     }
   };
-  canvas.addEventListener('pointerdown', e=>{
-    const rect = canvas.getBoundingClientRect();
-    push(e.clientX-rect.left, e.clientY-rect.top);
-  });
-  canvas.addEventListener('pointermove', e=>{
-    if(e.buttons!==1) return;
-    const rect = canvas.getBoundingClientRect();
-    push(e.clientX-rect.left, e.clientY-rect.top);
-  });
+  canvas.addEventListener('pointerdown', (e)=>{
+    canvas.setPointerCapture?.(e.pointerId);
+    dragging = true;
+    const {x,y} = getLocal(e);
+    push(x,y);
+    e.preventDefault();
+  }, {passive:false});
+  canvas.addEventListener('pointermove', (e)=>{
+    if(!dragging) return;
+    const {x,y} = getLocal(e);
+    push(x,y);
+    e.preventDefault();
+  }, {passive:false});
+  const endDrag = (e)=>{
+    dragging = false;
+    try{ canvas.releasePointerCapture?.(e.pointerId); }catch{}
+    e.preventDefault();
+  };
+  canvas.addEventListener('pointerup', endDrag, {passive:false});
+  canvas.addEventListener('pointercancel', endDrag, {passive:false});
+  canvas.addEventListener('pointerleave', endDrag, {passive:false});
 
   const ro = new ResizeObserver(positionSlots);
   ro.observe(slotsWrap);
