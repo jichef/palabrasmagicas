@@ -32,11 +32,20 @@
   canvas{
     position:absolute; inset:0;             /* superpuestos */
     display:block; touch-action:none;
-    background:#fff; margin:auto;
-    box-shadow:0 6px 18px rgba(0,0,0,.06);
-    border:1px solid var(--border); border-radius:12px
+    background:transparent;                  /* <- transparente por defecto */
+    border:none; box-shadow:none; border-radius:12px;
   }
-  /* Arreglo iOS: que las capas superiores no “roben” el toque */
+  /* Estética solo en la capa de pauta (abajo) */
+  #pautaCanvas{
+    background:#fff;
+    border:1px solid var(--border);
+    box-shadow:0 6px 18px rgba(0,0,0,.06);
+    z-index:1;
+  }
+  #drawCanvas{ z-index:2; }                  /* dibujo en medio */
+  #ghostCanvas{ z-index:3; }                 /* guía encima */
+
+  /* Arreglo iOS: que la pauta y la guía no “roben” el toque */
   #pautaCanvas, #ghostCanvas { pointer-events: none; }
 
   .footer{
@@ -103,7 +112,7 @@
 (() => {
   // ===== Utilidades =====
   const DPR = Math.max(1, window.devicePixelRatio || 1);
-  const PX_PER_MM = 96/25.4; // ~3.78 px/mm (CSS px a 96dpi). Luego se multiplica por DPR.
+  const PX_PER_MM = 96/25.4; // ~3.78 px/mm (CSS px a 96dpi). Luego * DPR.
   const $ = sel => document.querySelector(sel);
   const pautaSel = $('#pauta'), margenSel = $('#margen'), colorPautaSel = $('#colorPauta');
   const toolSel = $('#tool'), sizeRange = $('#size');
@@ -157,7 +166,7 @@
     const marginPx = marginMM * PX_PER_MM * DPR;
     const {base, sec, margin} = getPalette(colorPautaSel.value);
 
-    // fondo
+    // fondo (ya es blanco por CSS, pero rellenamos por si exportas PNG)
     ctx.fillStyle = '#ffffff';
     ctx.fillRect(0,0,pautaCv.width,pautaCv.height);
 
@@ -170,24 +179,19 @@
       ctx.stroke();
     }
 
-    // Dibujar grupos de 4 líneas horizontales: (ascendentes) sec — “techo” sec — base roja — descendentes sec
+    // grupos de 4 líneas: sec — sec — base — sec
     ctx.lineWidth = 1 * DPR;
     const topPad = 20 * DPR;
     let y = topPad;
 
     while (y < pautaCv.height - topPad){
-      // Línea 1 (ascendentes)
       ctx.strokeStyle = sec; ctx.setLineDash([]);
-      lineH(y);              y += groupGap;
-      // Línea 2 (techo)
-      lineH(y);              y += groupGap;
-      // Línea 3 (base)
+      lineH(y);              y += groupGap;       // ascendente
+      lineH(y);              y += groupGap;       // techo
       ctx.strokeStyle = base; ctx.lineWidth = 1.5 * DPR;
-      lineH(y);              y += groupGap;
-      ctx.lineWidth = 1 * DPR;
-      // Línea 4 (descendentes)
-      ctx.strokeStyle = sec;
-      lineH(y);              y += groupGap * 1.6; // espacio entre grupos
+      lineH(y);              y += groupGap;       // base
+      ctx.lineWidth = 1 * DPR; ctx.strokeStyle = sec;
+      lineH(y);              y += groupGap * 1.6; // descendente + espacio entre grupos
     }
 
     function lineH(ypos){
@@ -254,7 +258,7 @@
     ctxDraw.lineJoin = ctxDraw.lineCap = 'round';
     ctxDraw.lineWidth = parseFloat(sizeRange.value) * DPR;
     ctxDraw.strokeStyle = getComputedStyle(document.documentElement).getPropertyValue('--ink').trim();
-    // pintar punto inicial
+    // punto inicial
     ctxDraw.beginPath(); ctxDraw.arc(p.x,p.y,ctxDraw.lineWidth/2,0,Math.PI*2); ctxDraw.fill();
   }
   function moveDraw(e){
@@ -262,7 +266,6 @@
     const p = pointerPos(e);
     const prev = points[points.length-1];
     points.push(p);
-    // Dibujo incremental para feedback fluido
     ctxDraw.beginPath();
     const mx = (prev.x + p.x)/2, my = (prev.y + p.y)/2;
     ctxDraw.quadraticCurveTo(prev.x, prev.y, mx, my);
