@@ -3,366 +3,94 @@
 <head>
 <meta charset="utf-8" />
 <meta name="viewport" content="width=device-width,initial-scale=1,viewport-fit=cover" />
-<title>Práctica de trazos — Pauta tipo Lamela</title>
+<title>Pauta Lamela — práctica de trazos</title>
 <style>
-  :root{
-    --panel:#fff; --border:#e5e7eb; --ink:#111827;
-    --base:#ef4444;         /* línea base (roja) */
-    --sec:#3b82f6;          /* líneas secundarias (azules) */
-    --bg:#f9fafb;
-  }
-  html,body{height:100%;margin:0;background:var(--bg);font-family:system-ui,Segoe UI,Roboto,Helvetica,Arial;}
-  .wrap{display:grid;grid-template-rows:auto 1fr;min-height:100%;}
-  header{
-    position:sticky;top:0;z-index:10;
-    display:flex;flex-wrap:wrap;gap:.5rem 1rem;align-items:center;
-    padding:.6rem .8rem;background:var(--panel);border-bottom:1px solid var(--border);
-  }
-  header .group{display:flex;gap:.5rem;align-items:center;flex-wrap:wrap}
-  header label{font-size:.9rem;color:#374151}
-  header input[type="text"]{width:4.5rem}
-  header input, header select{padding:.35rem .5rem;border:1px solid var(--border);border-radius:.5rem;background:#fff}
-  header button{
-    border:1px solid var(--border);background:#fff;border-radius:.6rem;padding:.45rem .65rem;cursor:pointer
-  }
-  header button:active{transform:translateY(1px)}
-
-  /* ===== Lienzos superpuestos ===== */
-  #board{position:relative;inset:0;overflow:hidden}
-  canvas{
-    position:absolute; inset:0;             /* superpuestos */
-    display:block; touch-action:none;
-    background:transparent;                  /* <- transparente por defecto */
-    border:none; box-shadow:none; border-radius:12px;
-  }
-  /* Estética solo en la capa de pauta (abajo) */
-  #pautaCanvas{
-    background:#fff;
-    border:1px solid var(--border);
-    box-shadow:0 6px 18px rgba(0,0,0,.06);
-    z-index:1;
-  }
-  #drawCanvas{ z-index:2; }                  /* dibujo en medio */
-  #ghostCanvas{ z-index:3; }                 /* guía encima */
-
-  /* Arreglo iOS: que la pauta y la guía no “roben” el toque */
-  #pautaCanvas, #ghostCanvas { pointer-events: none; }
-
-  .footer{
-    position:fixed;left:50%;transform:translateX(-50%);bottom:.6rem;opacity:.6;font-size:.8rem;pointer-events:none
-  }
+  body{margin:0;background:#f3f4f6;font-family:sans-serif}
+  header{padding:.5rem;background:#fff;border-bottom:1px solid #ddd;display:flex;flex-wrap:wrap;gap:.5rem}
+  canvas{position:absolute;inset:0;margin:auto;touch-action:none}
+  #pautaCanvas{background:#fff;z-index:1;box-shadow:0 2px 12px rgba(0,0,0,.1);border:1px solid #ccc}
+  #drawCanvas{z-index:2}
+  #ghostCanvas{z-index:3;pointer-events:none}
+  #pautaCanvas{pointer-events:none}
+  main{position:relative;display:flex;justify-content:center;align-items:center;height:calc(100vh - 70px)}
 </style>
 </head>
 <body>
-<div class="wrap">
-  <header>
-    <div class="group">
-      <label>Pauta</label>
-      <select id="pauta">
-        <option value="2.5">2.5 mm</option>
-        <option value="3" selected>3 mm</option>
-        <option value="4">4 mm</option>
-      </select>
-      <label>Margen</label>
-      <select id="margen">
-        <option value="0" selected>Sin margen</option>
-        <option value="10">10 mm</option>
-        <option value="15">15 mm</option>
-      </select>
-      <label>Color</label>
-      <select id="colorPauta">
-        <option value="clasica" selected>Clásica (azul/rojo)</option>
-        <option value="suave">Suave</option>
-        <option value="alto">Alto contraste</option>
-      </select>
-      <button id="togglePauta" title="Mostrar/ocultar pauta">👁️ Pauta</button>
-    </div>
-    <div class="group">
-      <label>Herramienta</label>
-      <select id="tool">
-        <option value="pen" selected>Lápiz</option>
-        <option value="eraser">Goma</option>
-      </select>
-      <label>Grosor</label>
-      <input type="range" id="size" min="1" max="16" value="6" />
-      <button id="undo" title="Deshacer">↶</button>
-      <button id="redo" title="Rehacer">↷</button>
-      <button id="clear" title="Limpiar todo">🗑️</button>
-      <button id="save" title="Descargar PNG">⬇️ PNG</button>
-    </div>
-    <div class="group">
-      <label>Letra guía</label>
-      <input id="ghostChar" type="text" maxlength="2" value="a" />
-      <label>Tamaño</label>
-      <input id="ghostSize" type="range" min="40" max="300" value="160" />
-      <button id="toggleGhost" title="Mostrar/ocultar letra guía">👁️ Letra</button>
-      <button id="centerGhost" title="Centrar guía">⤢ Centrar</button>
-    </div>
-  </header>
-
-  <main id="board">
-    <canvas id="pautaCanvas"></canvas>
-    <canvas id="drawCanvas"></canvas>
-    <canvas id="ghostCanvas"></canvas>
-  </main>
-  <div class="footer">Pellizca/zoom del navegador desactivado sobre el lienzo para evitar scroll accidental.</div>
-</div>
-
+<header>
+  <button id="redraw">🔄 Redibujar pauta</button>
+  <button id="clear">🗑️ Limpiar</button>
+  <button id="save">💾 Guardar PNG</button>
+</header>
+<main>
+  <canvas id="pautaCanvas"></canvas>
+  <canvas id="drawCanvas"></canvas>
+  <canvas id="ghostCanvas"></canvas>
+</main>
 <script>
-(() => {
-  // ===== Utilidades =====
-  const DPR = Math.max(1, window.devicePixelRatio || 1);
-  const PX_PER_MM = 96/25.4; // ~3.78 px/mm (CSS px a 96dpi). Luego * DPR.
-  const $ = sel => document.querySelector(sel);
-  const pautaSel = $('#pauta'), margenSel = $('#margen'), colorPautaSel = $('#colorPauta');
-  const toolSel = $('#tool'), sizeRange = $('#size');
-  const undoBtn = $('#undo'), redoBtn = $('#redo'), clearBtn = $('#clear'), saveBtn = $('#save');
-  const togglePautaBtn = $('#togglePauta');
-  const ghostChar = $('#ghostChar'), ghostSize = $('#ghostSize');
-  const toggleGhostBtn = $('#toggleGhost'), centerGhostBtn = $('#centerGhost');
+(()=>{
+  const DPR = window.devicePixelRatio||1;
+  const mm2px = mm => mm*96/25.4*DPR;
 
-  const pautaCv = $('#pautaCanvas');
-  const drawCv  = $('#drawCanvas');
-  const ghostCv = $('#ghostCanvas');
-  const cvs = [pautaCv, drawCv, ghostCv];
+  const pautaCv=document.getElementById('pautaCanvas');
+  const drawCv=document.getElementById('drawCanvas');
+  const ghostCv=document.getElementById('ghostCanvas');
+  const cvs=[pautaCv,drawCv,ghostCv];
 
-  let showPauta = true;
-  let showGhost = true;
-
-  // Tamaño responsivo con buen escalado
-  function fitCanvases() {
-    const vw = Math.min(window.innerWidth, 1200);
-    const vh = Math.min(window.innerHeight - 84, 1600);
-    const cssW = vw - 16, cssH = vh - 16;
-    cvs.forEach(cv => {
-      cv.width  = Math.floor(cssW * DPR);
-      cv.height = Math.floor(cssH * DPR);
-      cv.style.width  = cssW + 'px';
-      cv.style.height = cssH + 'px';
+  function resizeA4(){
+    const w=mm2px(210), h=mm2px(297); // A4
+    cvs.forEach(cv=>{
+      cv.width=w; cv.height=h;
+      cv.style.width=w/DPR+"px"; cv.style.height=h/DPR+"px";
     });
     drawPauta();
-    drawGhost();
-    redraw();
-  }
-  window.addEventListener('resize', fitCanvases, {passive:true});
-
-  // ===== Pauta tipo "Lamela" =====
-  function getPalette(mode){
-    if(mode==='suave') return {base:'#f87171', sec:'#93c5fd', margin:'#22c55e33'};
-    if(mode==='alto')  return {base:'#dc2626', sec:'#1d4ed8', margin:'#16a34a'};
-    return {base:getComputedStyle(document.documentElement).getPropertyValue('--base').trim(),
-            sec: getComputedStyle(document.documentElement).getPropertyValue('--sec').trim(),
-            margin:'#10b981'};
   }
 
   function drawPauta(){
-    const ctx = pautaCv.getContext('2d');
+    const ctx=pautaCv.getContext('2d');
     ctx.clearRect(0,0,pautaCv.width,pautaCv.height);
-    if(!showPauta) return;
-
-    const spacingMM = parseFloat(pautaSel.value); // distancia entre líneas dentro del grupo
-    const groupGap = spacingMM * PX_PER_MM * DPR;
-    const marginMM = parseFloat(margenSel.value);
-    const marginPx = marginMM * PX_PER_MM * DPR;
-    const {base, sec, margin} = getPalette(colorPautaSel.value);
-
-    // fondo (ya es blanco por CSS, pero rellenamos por si exportas PNG)
-    ctx.fillStyle = '#ffffff';
-    ctx.fillRect(0,0,pautaCv.width,pautaCv.height);
-
-    // margen vertical (si procede)
-    if(marginPx>0){
-      ctx.strokeStyle = margin; ctx.lineWidth = 2*DPR;
-      ctx.beginPath();
-      ctx.moveTo(marginPx, 0);
-      ctx.lineTo(marginPx, pautaCv.height);
-      ctx.stroke();
+    ctx.fillStyle="#fff";ctx.fillRect(0,0,pautaCv.width,pautaCv.height);
+    const step=mm2px(3); // 3 mm
+    let y=20;
+    ctx.lineWidth=1*DPR;
+    while(y<pautaCv.height-20){
+      ctx.strokeStyle="#3b82f6"; line(y); y+=step;   // ascendente
+      ctx.strokeStyle="#3b82f6"; line(y); y+=step;   // techo
+      ctx.strokeStyle="#ef4444"; ctx.lineWidth=1.5*DPR; line(y); y+=step; // base
+      ctx.strokeStyle="#3b82f6"; ctx.lineWidth=1*DPR; line(y); y+=step*1.6; // descendente + espacio
     }
-
-    // grupos de 4 líneas: sec — sec — base — sec
-    ctx.lineWidth = 1 * DPR;
-    const topPad = 20 * DPR;
-    let y = topPad;
-
-    while (y < pautaCv.height - topPad){
-      ctx.strokeStyle = sec; ctx.setLineDash([]);
-      lineH(y);              y += groupGap;       // ascendente
-      lineH(y);              y += groupGap;       // techo
-      ctx.strokeStyle = base; ctx.lineWidth = 1.5 * DPR;
-      lineH(y);              y += groupGap;       // base
-      ctx.lineWidth = 1 * DPR; ctx.strokeStyle = sec;
-      lineH(y);              y += groupGap * 1.6; // descendente + espacio entre grupos
-    }
-
-    function lineH(ypos){
-      ctx.beginPath();
-      ctx.moveTo(0, ypos);
-      ctx.lineTo(pautaCv.width, ypos);
-      ctx.stroke();
-    }
+    function line(ypos){ctx.beginPath();ctx.moveTo(0,ypos);ctx.lineTo(pautaCv.width,ypos);ctx.stroke();}
+    console.log("✅ Pauta dibujada");
   }
 
-  // ===== Dibujo libre (lápiz/goma) con suavizado =====
-  const ctxDraw = drawCv.getContext('2d');
-  let drawing = false, points = [];
-  const history = []; let redoStack = [];
-
-  function setComposite(){
-    ctxDraw.globalCompositeOperation = (toolSel.value==='eraser') ? 'destination-out' : 'source-over';
-  }
-
-  function redraw() {
-    ctxDraw.clearRect(0,0,drawCv.width,drawCv.height);
-    const snap = history.flat();
-    snap.forEach(stroke => {
-      ctxDraw.save();
-      ctxDraw.lineJoin = ctxDraw.lineCap = 'round';
-      ctxDraw.lineWidth = stroke.size;
-      ctxDraw.strokeStyle = stroke.color;
-      ctxDraw.globalCompositeOperation = stroke.mode;
-      drawStroke(stroke.path);
-      ctxDraw.restore();
-    });
-  }
-
-  function drawStroke(path){
-    if(path.length<2){ // punto
-      const p=path[0];
-      ctxDraw.beginPath(); ctxDraw.arc(p.x,p.y,ctxDraw.lineWidth/2,0,Math.PI*2); ctxDraw.fill();
-      return;
-    }
-    ctxDraw.beginPath();
-    for(let i=0;i<path.length-1;i++){
-      const p0 = path[i], p1 = path[i+1];
-      const mx = (p0.x + p1.x)/2, my = (p0.y + p1.y)/2;
-      if(i===0) ctxDraw.moveTo(p0.x, p0.y);
-      ctxDraw.quadraticCurveTo(p0.x, p0.y, mx, my);
-    }
-    ctxDraw.stroke();
-  }
-
-  function pointerPos(e){
-    const rect = drawCv.getBoundingClientRect();
-    const x = (e.clientX - rect.left) * DPR;
-    const y = (e.clientY - rect.top)  * DPR;
-    return {x,y};
-  }
-
-  function startDraw(e){
-    e.preventDefault();
-    drawing = true; redoStack = [];
-    const p = pointerPos(e);
-    points = [p];
-    ctxDraw.save();
-    setComposite();
-    ctxDraw.lineJoin = ctxDraw.lineCap = 'round';
-    ctxDraw.lineWidth = parseFloat(sizeRange.value) * DPR;
-    ctxDraw.strokeStyle = getComputedStyle(document.documentElement).getPropertyValue('--ink').trim();
-    // punto inicial
-    ctxDraw.beginPath(); ctxDraw.arc(p.x,p.y,ctxDraw.lineWidth/2,0,Math.PI*2); ctxDraw.fill();
-  }
-  function moveDraw(e){
-    if(!drawing) return;
-    const p = pointerPos(e);
-    const prev = points[points.length-1];
-    points.push(p);
-    ctxDraw.beginPath();
-    const mx = (prev.x + p.x)/2, my = (prev.y + p.y)/2;
-    ctxDraw.quadraticCurveTo(prev.x, prev.y, mx, my);
-    ctxDraw.stroke();
-  }
-  function endDraw(){
-    if(!drawing) return;
-    drawing = false;
-    history.push([{
-      mode: ctxDraw.globalCompositeOperation,
-      size: ctxDraw.lineWidth,
-      color: ctxDraw.strokeStyle,
-      path: points.slice()
-    }]);
-    ctxDraw.restore();
-  }
-
-  // Pointer Events (ratón/táctil/pen). iOS OK.
-  ['pointerdown','pointermove','pointerup','pointercancel','pointerleave'].forEach(ev=>{
-    drawCv.addEventListener(ev, e=>{
-      if(ev==='pointerdown') startDraw(e);
-      else if(ev==='pointermove') moveDraw(e);
-      else endDraw(e);
-    }, {passive:false});
+  // Dibujo libre
+  const ctx=drawCv.getContext('2d'); ctx.lineCap="round"; ctx.lineJoin="round";
+  let drawing=false, last=null;
+  drawCv.addEventListener("pointerdown",e=>{
+    drawing=true;ctx.beginPath();
+    ctx.moveTo(e.offsetX*DPR,e.offsetY*DPR);
   });
-
-  // Deshacer/rehacer/limpiar
-  undoBtn.addEventListener('click', ()=>{
-    if(!history.length) return;
-    const last = history.pop();
-    redoStack.push(last);
-    redraw();
+  drawCv.addEventListener("pointermove",e=>{
+    if(!drawing)return;
+    ctx.lineWidth=3*DPR; ctx.strokeStyle="#111";
+    ctx.lineTo(e.offsetX*DPR,e.offsetY*DPR); ctx.stroke();
   });
-  redoBtn.addEventListener('click', ()=>{
-    if(!redoStack.length) return;
-    const item = redoStack.pop();
-    history.push(item);
-    redraw();
-  });
-  clearBtn.addEventListener('click', ()=>{
-    history.length = 0; redoStack.length = 0;
-    ctxDraw.clearRect(0,0,drawCv.width,drawCv.height);
-  });
+  ["pointerup","pointerleave"].forEach(ev=>drawCv.addEventListener(ev,()=>drawing=false));
 
-  toolSel.addEventListener('change', setComposite);
-  sizeRange.addEventListener('input', ()=>{/* dinámico */});
-
-  // Guardar PNG (composición pauta + trazos + guía)
-  saveBtn.addEventListener('click', ()=>{
-    const off = document.createElement('canvas');
-    off.width = pautaCv.width; off.height = pautaCv.height;
-    const octx = off.getContext('2d');
-    octx.fillStyle = '#fff'; octx.fillRect(0,0,off.width,off.height);
-    if(showPauta) octx.drawImage(pautaCv,0,0);
-    octx.drawImage(ghostCv,0,0);
+  // Botones
+  document.getElementById("redraw").onclick=drawPauta;
+  document.getElementById("clear").onclick=()=>ctx.clearRect(0,0,drawCv.width,drawCv.height);
+  document.getElementById("save").onclick=()=>{
+    const off=document.createElement("canvas");
+    off.width=pautaCv.width;off.height=pautaCv.height;
+    const octx=off.getContext("2d");
+    octx.drawImage(pautaCv,0,0);
     octx.drawImage(drawCv,0,0);
-    const url = off.toDataURL('image/png');
-    const a = document.createElement('a');
-    a.href = url; a.download = 'trazos-pauta.png';
-    a.click();
-  });
+    const a=document.createElement("a");
+    a.href=off.toDataURL();a.download="pauta.png";a.click();
+  };
 
-  togglePautaBtn.addEventListener('click', ()=>{
-    showPauta = !showPauta; drawPauta();
-  });
-  pautaSel.addEventListener('change', drawPauta);
-  margenSel.addEventListener('change', drawPauta);
-  colorPautaSel.addEventListener('change', drawPauta);
-
-  // ===== Letra guía (punteada) =====
-  function drawGhost(){
-    const ctx = ghostCv.getContext('2d');
-    ctx.clearRect(0,0,ghostCv.width,ghostCv.height);
-    if(!showGhost) return;
-    const txt = ghostChar.value || '';
-    if(!txt.trim()) return;
-
-    const fontPx = parseInt(ghostSize.value,10) * DPR;
-    ctx.save();
-    ctx.font = `normal ${fontPx}px "Comic Sans MS", "Bradley Hand", "Segoe Print", system-ui, sans-serif`;
-    ctx.textBaseline = 'middle';
-    ctx.textAlign = 'center';
-    ctx.strokeStyle = '#6b7280';
-    ctx.lineWidth = Math.max(1, Math.round(fontPx*0.06));
-    ctx.setLineDash([8*DPR, 6*DPR]);
-
-    const cx = ghostCv.width/2, cy = ghostCv.height/2;
-    ctx.strokeText(txt, cx, cy);
-    ctx.restore();
-  }
-  ghostChar.addEventListener('input', drawGhost);
-  ghostSize.addEventListener('input', drawGhost);
-  toggleGhostBtn.addEventListener('click', ()=>{ showGhost = !showGhost; drawGhost(); });
-  centerGhostBtn.addEventListener('click', drawGhost);
-
-  // ===== Init =====
-  fitCanvases();
+  resizeA4();
+  window.addEventListener("resize",resizeA4);
 })();
 </script>
 </body>
