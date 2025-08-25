@@ -7,40 +7,47 @@
 <style>
   :root{
     --ink:#111; --panel:#fff; --border:#d1d5db; --bg:#f3f4f6;
-    --sec:#3b82f6; --base:#ef4444;
+    --sec:#3b82f6; --base:#ef4444; --margin:#10b981;
   }
-  *{box-sizing:border-box}
-  body{margin:0;background:var(--bg);font-family:system-ui,-apple-system,Segoe UI,Roboto,Helvetica,Arial;height:100vh;display:flex;flex-direction:column}
+  body{
+    margin:0;background:var(--bg);
+    font-family:system-ui,-apple-system,Segoe UI,Roboto,Helvetica,Arial;
+    min-height:100vh;display:flex;flex-direction:column;
+  }
 
-  /* === Barra de herramientas === */
+  /* Barra de herramientas */
   header{
     flex:0 0 auto;
     background:#fff;border-bottom:1px solid var(--border);
-    padding:.6rem .8rem;display:flex;flex-wrap:wrap;gap:.6rem 1rem;align-items:center;
+    padding:.6rem .8rem;
+    display:flex;flex-wrap:wrap;gap:.6rem 1rem;align-items:center;
+    overflow-x:auto;  /* 👈 hace scroll si no cabe */
     position:sticky;top:0;z-index:10;
   }
   header .group{display:flex;flex-wrap:wrap;gap:.5rem;align-items:center}
   label{font-size:.9rem;color:#374151}
-  select,input[type="text"],input[type="number"]{
-    border:1px solid var(--border);border-radius:.5rem;padding:.35rem .5rem;background:#fff
+  select,input[type="text"]{
+    border:1px solid var(--border);border-radius:.5rem;
+    padding:.35rem .5rem;background:#fff
   }
   input[type="range"]{width:120px}
   button{border:1px solid var(--border);border-radius:.5rem;background:#fff;padding:.45rem .65rem;cursor:pointer}
   button:active{transform:translateY(1px)}
 
-  /* === Zona de lienzos === */
+  /* Zona lienzos */
   main{
-    flex:1 1 auto;
-    display:flex;justify-content:center;align-items:center;
+    flex:1 1 auto;display:flex;justify-content:center;align-items:center;
     overflow:auto;padding:8px;
   }
   canvas{position:absolute;inset:0;margin:auto;touch-action:none}
   #pautaCanvas{
-    background:#fff;z-index:1;box-shadow:0 4px 16px rgba(0,0,0,.10);border:1px solid var(--border);border-radius:12px;
+    background:#fff;z-index:1;
+    border:1px solid var(--border);border-radius:12px;
+    box-shadow:0 4px 16px rgba(0,0,0,.10);
     pointer-events:none;
   }
   #drawCanvas{z-index:2;border-radius:12px}
-  #ghostCanvas{z-index:3;pointer-events:none;border-radius:12px}
+  #ghostCanvas{z-index:3;border-radius:12px;pointer-events:none}
 </style>
 </head>
 <body>
@@ -55,28 +62,30 @@
     <label>Letra:</label>
     <select id="ghostSelect">
       <optgroup label="Minúsculas">
-        <option>a</option><option>b</option><option>c</option><option>d</option><option>e</option><option>f</option>
-        <option>g</option><option>h</option><option>i</option><option>j</option><option>k</option><option>l</option>
-        <option>m</option><option>n</option><option>ñ</option><option>o</option><option>p</option><option>q</option>
-        <option>r</option><option>s</option><option>t</option><option>u</option><option>v</option><option>w</option>
-        <option>x</option><option>y</option><option>z</option>
+        <option>a</option><option>b</option><option>c</option><option>d</option><option>e</option>
+        <option>f</option><option>g</option><option>h</option><option>i</option><option>j</option>
+        <option>k</option><option>l</option><option>m</option><option>n</option><option>ñ</option>
+        <option>o</option><option>p</option><option>q</option><option>r</option><option>s</option>
+        <option>t</option><option>u</option><option>v</option><option>w</option><option>x</option>
+        <option>y</option><option>z</option>
       </optgroup>
       <optgroup label="Mayúsculas">
-        <option>A</option><option>B</option><option>C</option><option>D</option><option>E</option><option>F</option>
-        <option>G</option><option>H</option><option>I</option><option>J</option><option>K</option><option>L</option>
-        <option>M</option><option>N</option><option>Ñ</option><option>O</option><option>P</option><option>Q</option>
-        <option>R</option><option>S</option><option>T</option><option>U</option><option>V</option><option>W</option>
-        <option>X</option><option>Y</option><option>Z</option>
+        <option>A</option><option>B</option><option>C</option><option>D</option><option>E</option>
+        <option>F</option><option>G</option><option>H</option><option>I</option><option>J</option>
+        <option>K</option><option>L</option><option>M</option><option>N</option><option>Ñ</option>
+        <option>O</option><option>P</option><option>Q</option><option>R</option><option>S</option>
+        <option>T</option><option>U</option><option>V</option><option>W</option><option>X</option>
+        <option>Y</option><option>Z</option>
       </optgroup>
       <optgroup label="Opciones">
         <option value="__custom__">Libre (texto)</option>
-        <option value="__none__" selected>Ocultar guía</option>
+        <option value="__none__">Ocultar guía</option>
       </optgroup>
     </select>
-    <input id="ghostText" type="text" placeholder="Escribe aquí…" style="display:none;width:10rem" />
+    <input id="ghostText" type="text" placeholder="Escribe aquí…" style="display:none;width:12rem" />
     <label>Tamaño:</label>
     <input id="ghostSize" type="range" min="40" max="300" value="160" />
-    <label><input type="checkbox" id="ghostShow" /> Mostrar</label>
+    <label><input type="checkbox" id="ghostShow" checked /> Mostrar</label>
   </div>
 
   <div class="group">
@@ -109,82 +118,104 @@
   const ghostShow=document.getElementById('ghostShow');
   const penSize=document.getElementById('penSize');
 
+  // medidas pauta
+  const STEP = mm2px(3);
+  const TOP_PAD = 20*DPR;
+  const MARGIN_X = mm2px(15);
+
   function resizeA4(){
     cvs.forEach(cv=>{
       cv.width=A4.w;cv.height=A4.h;
       cv.style.width=px2css(A4.w);cv.style.height=px2css(A4.h);
     });
-    drawPauta();drawGuide();
+    drawPauta(); drawGuide();
   }
+  window.addEventListener('resize', resizeA4, {passive:true});
 
   function drawPauta(){
     const ctx=pauta.getContext('2d');
     ctx.clearRect(0,0,pauta.width,pauta.height);
     ctx.fillStyle="#fff";ctx.fillRect(0,0,pauta.width,pauta.height);
-    const step=mm2px(3), topPad=20*DPR;let y=topPad;
-    while(y<pauta.height-topPad){
-      strokeH(ctx,y,1*DPR,"#3b82f6");y+=step;
-      strokeH(ctx,y,1*DPR,"#3b82f6");y+=step;
-      strokeH(ctx,y,1.5*DPR,"#ef4444");y+=step;
-      strokeH(ctx,y,1*DPR,"#3b82f6");y+=step*1.6;
+
+    let y=TOP_PAD;
+    while(y<pauta.height-TOP_PAD){
+      strokeH(ctx,y,1*DPR,"#3b82f6"); y+=STEP;      // ascendente
+      strokeH(ctx,y,1*DPR,"#3b82f6"); y+=STEP;      // techo
+      strokeH(ctx,y,1.5*DPR,"#ef4444"); y+=STEP;    // base (roja)
+      strokeH(ctx,y,1*DPR,"#3b82f6"); y+=STEP*1.6;  // descendente + espacio
     }
-    const marginX=mm2px(15);
-    ctx.beginPath();ctx.moveTo(marginX,0);ctx.lineTo(marginX,pauta.height);
+    ctx.beginPath();ctx.moveTo(MARGIN_X,0);ctx.lineTo(MARGIN_X,pauta.height);
     ctx.lineWidth=2*DPR;ctx.strokeStyle="#10b981";ctx.stroke();
   }
   function strokeH(ctx,y,w,c){ctx.beginPath();ctx.moveTo(0,y);ctx.lineTo(pauta.width,y);ctx.lineWidth=w;ctx.strokeStyle=c;ctx.stroke();}
 
+  function nearestBaseLineY(){
+    // baseline roja más cercana al centro
+    const centerY = ghost.height/2;
+    const first = TOP_PAD + 2*STEP;  // primera base
+    const period = STEP*4.6;
+    const k = Math.round((centerY-first)/period);
+    return first + k*period;
+  }
+
   function currentGuideText(){
     const sel=ghostSelect.value;
-    if(sel==="__none__"||!ghostShow.checked)return"";
-    if(sel==="__custom__")return ghostText.value.trim();
+    if(!ghostShow.checked || sel==="__none__") return "";
+    if(sel==="__custom__") return (ghostText.value||"").trim();
     return sel;
   }
+
   function drawGuide(){
     const txt=currentGuideText();
-    const ctx=ghost.getContext("2d");
+    const ctx=ghost.getContext('2d');
     ctx.clearRect(0,0,ghost.width,ghost.height);
-    if(!txt)return;
+    if(!txt) return;
+
     const fontPx=parseInt(ghostSize.value,10)*DPR;
+    const cx=ghost.width/2;
+    const baselineY=nearestBaseLineY();
+
     ctx.save();
     ctx.font=`normal ${fontPx}px "Comic Sans MS","Segoe Print","Bradley Hand",system-ui,sans-serif`;
-    ctx.textAlign="center";ctx.textBaseline="middle";
-    ctx.globalAlpha=0.28;ctx.fillStyle="#111";ctx.fillText(txt,ghost.width/2,ghost.height/2);
+    ctx.textAlign="center";ctx.textBaseline="alphabetic";
+    ctx.globalAlpha=0.28;ctx.fillStyle="#111";ctx.fillText(txt,cx,baselineY);
     ctx.globalAlpha=0.6;ctx.lineWidth=Math.max(1,Math.round(fontPx*0.06));
-    ctx.strokeStyle="#6b7280";ctx.strokeText(txt,ghost.width/2,ghost.height/2);
+    ctx.strokeStyle="#6b7280";ctx.strokeText(txt,cx,baselineY);
     ctx.restore();
   }
 
-  ghostSelect.addEventListener("change",()=>{
-    const v=ghostSelect.value;
-    ghostText.style.display=(v==="__custom__")?"inline-block":"none";
-    if(v==="__none__"){ghostShow.checked=false}else{ghostShow.checked=true}
+  ghostSelect.addEventListener('change',()=>{
+    ghostText.style.display=(ghostSelect.value==='__custom__')?'inline-block':'none';
+    if(ghostSelect.value==='__none__'){ghostShow.checked=false;}else{ghostShow.checked=true;}
     drawGuide();
   });
-  [ghostText,ghostSize,ghostShow].forEach(el=>el.addEventListener("input",drawGuide));
+  [ghostText,ghostSize,ghostShow].forEach(el=>el.addEventListener('input',drawGuide));
 
-  const dctx=draw.getContext("2d");dctx.lineCap="round";dctx.lineJoin="round";
+  // Dibujo libre
+  const dctx=draw.getContext('2d'); dctx.lineCap='round'; dctx.lineJoin='round';
   let drawing=false;
-  function pos(e){const r=draw.getBoundingClientRect();return{ x:(e.clientX-r.left)*DPR,y:(e.clientY-r.top)*DPR};}
-  draw.addEventListener("pointerdown",e=>{
-    e.preventDefault();drawing=true;
-    const {x,y}=pos(e);dctx.beginPath();dctx.moveTo(x,y);
-    dctx.lineWidth=parseFloat(penSize.value)*DPR;dctx.strokeStyle="#111";
+  function pos(e){const r=draw.getBoundingClientRect();return{x:(e.clientX-r.left)*DPR,y:(e.clientY-r.top)*DPR};}
+  draw.addEventListener('pointerdown',e=>{
+    e.preventDefault();drawing=true;const {x,y}=pos(e);
+    dctx.beginPath();dctx.moveTo(x,y);
+    dctx.lineWidth=parseFloat(penSize.value)*DPR;dctx.strokeStyle='#111';
   },{passive:false});
-  draw.addEventListener("pointermove",e=>{
-    if(!drawing)return;const {x,y}=pos(e);dctx.lineTo(x,y);dctx.stroke();
-  },{passive:false});
-  ["pointerup","pointercancel","pointerleave"].forEach(ev=>draw.addEventListener(ev,()=>drawing=false));
+  draw.addEventListener('pointermove',e=>{if(drawing){const {x,y}=pos(e);dctx.lineTo(x,y);dctx.stroke();}},{passive:false});
+  ['pointerup','pointercancel','pointerleave'].forEach(ev=>draw.addEventListener(ev,()=>drawing=false,{passive:false}));
 
-  document.getElementById("redraw").onclick=drawPauta;
-  document.getElementById("clear").onclick=()=>dctx.clearRect(0,0,draw.width,draw.height);
-  document.getElementById("save").onclick=()=>{
-    const off=document.createElement("canvas");off.width=pauta.width;off.height=pauta.height;
-    const o=off.getContext("2d");o.drawImage(pauta,0,0);o.drawImage(ghost,0,0);o.drawImage(draw,0,0);
-    const a=document.createElement("a");a.href=off.toDataURL();a.download="pauta.png";a.click();
+  // Botones
+  document.getElementById('redraw').onclick=drawPauta;
+  document.getElementById('clear').onclick=()=>dctx.clearRect(0,0,draw.width,draw.height);
+  document.getElementById('save').onclick=()=>{
+    const off=document.createElement('canvas');off.width=pauta.width;off.height=pauta.height;
+    const o=off.getContext('2d');o.drawImage(pauta,0,0);o.drawImage(ghost,0,0);o.drawImage(draw,0,0);
+    const a=document.createElement('a');a.href=off.toDataURL('image/png');a.download='pauta.png';a.click();
   };
 
-  resizeA4();ghostShow.checked=false;drawGuide();
+  // Init
+  resizeA4();
+  ghostSelect.value='a';ghostShow.checked=true;
+  drawGuide();
 })();
 </script>
 </body>
