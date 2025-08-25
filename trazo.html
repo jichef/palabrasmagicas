@@ -26,8 +26,19 @@
     border:1px solid var(--border);background:#fff;border-radius:.6rem;padding:.45rem .65rem;cursor:pointer
   }
   header button:active{transform:translateY(1px)}
+
+  /* ===== Lienzos superpuestos ===== */
   #board{position:relative;inset:0;overflow:hidden}
-  canvas{display:block;touch-action:none; background:#fff; margin:auto; box-shadow:0 6px 18px rgba(0,0,0,.06); border:1px solid var(--border); border-radius:12px}
+  canvas{
+    position:absolute; inset:0;             /* superpuestos */
+    display:block; touch-action:none;
+    background:#fff; margin:auto;
+    box-shadow:0 6px 18px rgba(0,0,0,.06);
+    border:1px solid var(--border); border-radius:12px
+  }
+  /* Arreglo iOS: que las capas superiores no “roben” el toque */
+  #pautaCanvas, #ghostCanvas { pointer-events: none; }
+
   .footer{
     position:fixed;left:50%;transform:translateX(-50%);bottom:.6rem;opacity:.6;font-size:.8rem;pointer-events:none
   }
@@ -92,7 +103,7 @@
 (() => {
   // ===== Utilidades =====
   const DPR = Math.max(1, window.devicePixelRatio || 1);
-  const PX_PER_MM = 96/25.4; // ~3.78 px/mm en CSS píxel a 96dpi (escala luego por DPR)
+  const PX_PER_MM = 96/25.4; // ~3.78 px/mm (CSS px a 96dpi). Luego se multiplica por DPR.
   const $ = sel => document.querySelector(sel);
   const pautaSel = $('#pauta'), margenSel = $('#margen'), colorPautaSel = $('#colorPauta');
   const toolSel = $('#tool'), sizeRange = $('#size');
@@ -111,7 +122,6 @@
 
   // Tamaño responsivo con buen escalado
   function fitCanvases() {
-    // margen visual alrededor
     const vw = Math.min(window.innerWidth, 1200);
     const vh = Math.min(window.innerHeight - 84, 1600);
     const cssW = vw - 16, cssH = vh - 16;
@@ -165,20 +175,19 @@
     const topPad = 20 * DPR;
     let y = topPad;
 
-    // Ajuste para cubrir toda el área
     while (y < pautaCv.height - topPad){
       // Línea 1 (ascendentes)
       ctx.strokeStyle = sec; ctx.setLineDash([]);
       lineH(y);              y += groupGap;
       // Línea 2 (techo)
       lineH(y);              y += groupGap;
-      // Línea 3 (base, roja y algo más gruesa)
+      // Línea 3 (base)
       ctx.strokeStyle = base; ctx.lineWidth = 1.5 * DPR;
       lineH(y);              y += groupGap;
       ctx.lineWidth = 1 * DPR;
       // Línea 4 (descendentes)
       ctx.strokeStyle = sec;
-      lineH(y);              y += groupGap * 1.6; // pequeño espacio entre grupos
+      lineH(y);              y += groupGap * 1.6; // espacio entre grupos
     }
 
     function lineH(ypos){
@@ -191,7 +200,7 @@
 
   // ===== Dibujo libre (lápiz/goma) con suavizado =====
   const ctxDraw = drawCv.getContext('2d');
-  let drawing = false, last = null, points = [];
+  let drawing = false, points = [];
   const history = []; let redoStack = [];
 
   function setComposite(){
@@ -199,9 +208,8 @@
   }
 
   function redraw() {
-    // redibuja todas las trazadas almacenadas (en caso de resize)
     ctxDraw.clearRect(0,0,drawCv.width,drawCv.height);
-    const snap = history.flat(); // array de trazos
+    const snap = history.flat();
     snap.forEach(stroke => {
       ctxDraw.save();
       ctxDraw.lineJoin = ctxDraw.lineCap = 'round';
@@ -220,7 +228,6 @@
       return;
     }
     ctxDraw.beginPath();
-    // Suavizado con curvas cuadráticas
     for(let i=0;i<path.length-1;i++){
       const p0 = path[i], p1 = path[i+1];
       const mx = (p0.x + p1.x)/2, my = (p0.y + p1.y)/2;
@@ -240,21 +247,23 @@
   function startDraw(e){
     e.preventDefault();
     drawing = true; redoStack = [];
-    last = pointerPos(e);
-    points = [last];
+    const p = pointerPos(e);
+    points = [p];
     ctxDraw.save();
     setComposite();
     ctxDraw.lineJoin = ctxDraw.lineCap = 'round';
     ctxDraw.lineWidth = parseFloat(sizeRange.value) * DPR;
     ctxDraw.strokeStyle = getComputedStyle(document.documentElement).getPropertyValue('--ink').trim();
+    // pintar punto inicial
+    ctxDraw.beginPath(); ctxDraw.arc(p.x,p.y,ctxDraw.lineWidth/2,0,Math.PI*2); ctxDraw.fill();
   }
   function moveDraw(e){
     if(!drawing) return;
     const p = pointerPos(e);
+    const prev = points[points.length-1];
     points.push(p);
     // Dibujo incremental para feedback fluido
     ctxDraw.beginPath();
-    const prev = points[points.length-2];
     const mx = (prev.x + p.x)/2, my = (prev.y + p.y)/2;
     ctxDraw.quadraticCurveTo(prev.x, prev.y, mx, my);
     ctxDraw.stroke();
@@ -262,7 +271,6 @@
   function endDraw(){
     if(!drawing) return;
     drawing = false;
-    // guarda trazo en historial
     history.push([{
       mode: ctxDraw.globalCompositeOperation,
       size: ctxDraw.lineWidth,
@@ -272,7 +280,7 @@
     ctxDraw.restore();
   }
 
-  // Pointer Events (válido para ratón/táctil/pen). iOS OK.
+  // Pointer Events (ratón/táctil/pen). iOS OK.
   ['pointerdown','pointermove','pointerup','pointercancel','pointerleave'].forEach(ev=>{
     drawCv.addEventListener(ev, e=>{
       if(ev==='pointerdown') startDraw(e);
@@ -307,7 +315,6 @@
     const off = document.createElement('canvas');
     off.width = pautaCv.width; off.height = pautaCv.height;
     const octx = off.getContext('2d');
-    // fondo blanco
     octx.fillStyle = '#fff'; octx.fillRect(0,0,off.width,off.height);
     if(showPauta) octx.drawImage(pautaCv,0,0);
     octx.drawImage(ghostCv,0,0);
