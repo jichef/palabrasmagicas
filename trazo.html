@@ -3,176 +3,619 @@
 <head>
 <meta charset="utf-8" />
 <meta name="viewport" content="width=device-width,initial-scale=1,viewport-fit=cover" />
-<title>Pauta Lamela — práctica de trazos</title>
+<title>Pauta Lamela — trazos + zoom/pan + palabra en línea + guía animada</title>
 <style>
-  body{margin:0;background:#f3f4f6;font-family:system-ui;min-height:100vh;display:flex;flex-direction:column}
+  :root{
+    --ink:#111; --panel:#fff; --border:#d1d5db; --bg:#f3f4f6;
+    --sec:#3b82f6; --base:#ef4444; --margin:#10b981;
+  }
+  body{
+    margin:0;background:var(--bg);
+    font-family:system-ui,-apple-system,Segoe UI,Roboto,Helvetica,Arial;
+    min-height:100vh;display:flex;flex-direction:column;
+  }
+
   header{
-    flex:0 0 auto;background:#fff;border-bottom:1px solid #ddd;
+    flex:0 0 auto;background:#fff;border-bottom:1px solid var(--border);
     padding:.6rem .8rem;display:flex;flex-wrap:wrap;gap:.6rem 1rem;align-items:center;
     overflow-x:auto;position:sticky;top:0;z-index:10;
   }
-  header .group{display:flex;flex-wrap:wrap;gap:.4rem;align-items:center}
-  main{flex:1 1 auto;display:flex;justify-content:center;align-items:center;
-       overflow:hidden;position:relative;background:#ddd;}
-  #paperWrapper{transform-origin:0 0;display:inline-block;position:relative;}
+  header .group{display:flex;flex-wrap:wrap;gap:.5rem;align-items:center}
+  label{font-size:.9rem;color:#374151}
+  select,input[type="text"]{
+    border:1px solid var(--border);border-radius:.5rem;padding:.35rem .5rem;background:#fff
+  }
+  input[type="range"]{width:120px}
+  button{border:1px solid var(--border);border-radius:.5rem;background:#fff;padding:.45rem .65rem;cursor:pointer}
+  button:active{transform:translateY(1px)}
+
+  main{
+    flex:1 1 auto;display:flex;justify-content:center;align-items:center;
+    overflow:auto;padding:8px;
+  }
+  /* Los 3 lienzos comparten tamaño (A4) y se dibujan con transform de vista */
   canvas{position:absolute;inset:0;margin:auto;touch-action:none}
-  #pautaCanvas{background:#fff;z-index:1;border:1px solid #ccc;pointer-events:none}
-  #drawCanvas{z-index:2}
-  #ghostCanvas{z-index:3;pointer-events:none}
-  #animCanvas{z-index:4;pointer-events:none}
+  #pautaCanvas{
+    background:#fff;z-index:1;border:1px solid var(--border);border-radius:12px;
+    box-shadow:0 4px 16px rgba(0,0,0,.10);pointer-events:none;
+  }
+  #drawCanvas{z-index:2;border-radius:12px}
+  #ghostCanvas{z-index:3;border-radius:12px;pointer-events:none}
 </style>
 </head>
 <body>
 <header>
+  <!-- Archivo -->
   <div class="group">
-    <button id="zoomIn">➕ Zoom</button>
-    <button id="zoomOut">➖ Zoom</button>
+    <button id="savePng">💾 PNG</button>
+    <button id="printPdf">🖨️ Imprimir / PDF</button>
+    <button id="clear">🗑️ Limpiar</button>
+  </div>
+
+  <!-- Edición -->
+  <div class="group">
+    <label>Herramienta:</label>
+    <select id="tool">
+      <option value="pen" selected>✏️ Lápiz</option>
+      <option value="eraser">🩹 Goma</option>
+    </select>
+    <label>Grosor:</label>
+    <input id="penSize" type="range" min="1" max="16" value="4" />
+    <button id="undo" title="Deshacer">↶</button>
+    <button id="redo" title="Rehacer">↷</button>
+  </div>
+
+  <!-- Pauta -->
+  <div class="group">
+    <label>Pauta:</label>
+    <select id="pautaStep">
+      <option value="2.5">2.5 mm</option>
+      <option value="3" selected>3 mm</option>
+      <option value="4">4 mm</option>
+    </select>
+    <label>Margen:</label>
+    <select id="margenSel">
+      <option value="0">Sin margen</option>
+      <option value="10">10 mm</option>
+      <option value="15" selected>15 mm</option>
+    </select>
+    <label>Color:</label>
+    <select id="colorPauta">
+      <option value="clasica" selected>Clásica</option>
+      <option value="suave">Suave</option>
+      <option value="alto">Alto contraste</option>
+    </select>
+    <label><input type="checkbox" id="showPauta" checked/> Mostrar pauta</label>
+    <button id="redraw">🔄 Redibujar</button>
+  </div>
+
+  <!-- Guía -->
+  <div class="group">
+    <label>Letra:</label>
+    <select id="ghostSelect">
+      <optgroup label="Minúsculas">
+        <option>a</option><option>b</option><option>c</option><option>d</option><option>e</option>
+        <option>f</option><option>g</option><option>h</option><option>i</option><option>j</option>
+        <option>k</option><option>l</option><option>m</option><option>n</option><option>ñ</option>
+        <option>o</option><option>p</option><option>q</option><option>r</option><option>s</option>
+        <option>t</option><option>u</option><option>v</option><option>w</option><option>x</option>
+        <option>y</option><option>z</option>
+      </optgroup>
+      <optgroup label="Mayúsculas">
+        <option>A</option><option>B</option><option>C</option><option>D</option><option>E</option>
+        <option>F</option><option>G</option><option>H</option><option>I</option><option>J</option>
+        <option>K</option><option>L</option><option>M</option><option>N</option><option>Ñ</option>
+        <option>O</option><option>P</option><option>Q</option><option>R</option><option>S</option>
+        <option>T</option><option>U</option><option>V</option><option>W</option><option>X</option>
+        <option>Y</option><option>Z</option>
+      </optgroup>
+      <optgroup label="Opciones">
+        <option value="__custom__">Libre (texto)</option>
+        <option value="__none__">Ocultar guía</option>
+      </optgroup>
+    </select>
+    <input id="ghostText" type="text" placeholder="Escribe aquí…" style="display:none;width:12rem" />
+    <label>Tamaño:</label>
+    <input id="ghostSize" type="range" min="40" max="300" value="160" />
+    <label><input type="checkbox" id="ghostShow" checked/> Mostrar</label>
+    <label><input type="checkbox" id="inlineWord" checked/> Palabra en línea</label>
+    <label><input type="checkbox" id="animateGuide" /> Trazos animados</label>
+  </div>
+
+  <!-- Vista -->
+  <div class="group">
+    <button id="zoomIn">＋</button>
+    <button id="zoomOut">－</button>
+    <button id="zoomReset">100%</button>
+    <button id="panHand">✋ Mano</button>
     <button id="panLeft">⬅️</button>
-    <button id="panRight">➡️</button>
     <button id="panUp">⬆️</button>
     <button id="panDown">⬇️</button>
-    <button id="resetView">🔄 Reset</button>
-  </div>
-  <div class="group">
-    <label>Guía:</label>
-    <select id="guideMode">
-      <option value="letter" selected>Letra única</option>
-      <option value="word">Palabra en línea</option>
-      <option value="none">Ocultar</option>
-    </select>
-    <input id="guideText" type="text" placeholder="Escribe aquí…" value="hola" style="width:8rem" />
-    <input id="guideSize" type="range" min="40" max="200" value="120" />
-    <button id="animate">▶️ Animar trazo</button>
+    <button id="panRight">➡️</button>
+    <button id="centerToMargin">📏 Ir a margen</button>
   </div>
 </header>
 
 <main>
-  <div id="paperWrapper">
-    <canvas id="pautaCanvas"></canvas>
-    <canvas id="drawCanvas"></canvas>
-    <canvas id="ghostCanvas"></canvas>
-    <canvas id="animCanvas"></canvas>
-  </div>
+  <canvas id="pautaCanvas"></canvas>
+  <canvas id="drawCanvas"></canvas>
+  <canvas id="ghostCanvas"></canvas>
 </main>
 
 <script>
 (()=>{
-  const DPR = window.devicePixelRatio||1;
+  // ====== Básicos y tamaño A4 ======
+  const DPR = Math.max(1, window.devicePixelRatio||1);
   const mm2px = mm => mm*96/25.4*DPR;
+  const px2css = px => (px/DPR)+'px';
   const A4 = { w:mm2px(210), h:mm2px(297) };
 
-  const pauta=document.getElementById('pautaCanvas');
-  const draw=document.getElementById('drawCanvas');
-  const ghost=document.getElementById('ghostCanvas');
-  const anim=document.getElementById('animCanvas');
-  const wrapper=document.getElementById('paperWrapper');
-  const cvs=[pauta,draw,ghost,anim];
+  const pauta = document.getElementById('pautaCanvas');
+  const draw  = document.getElementById('drawCanvas');
+  const ghost = document.getElementById('ghostCanvas');
+  const cvs=[pauta,draw,ghost];
 
-  const guideMode=document.getElementById('guideMode');
-  const guideText=document.getElementById('guideText');
-  const guideSize=document.getElementById('guideSize');
-
-  // Zoom & Pan
-  let scale=1, offsetX=0, offsetY=0;
-  function applyTransform(){
-    wrapper.style.transform=`translate(${offsetX}px,${offsetY}px) scale(${scale})`;
-  }
-  document.getElementById('zoomIn').onclick=()=>{scale*=1.2;applyTransform();}
-  document.getElementById('zoomOut').onclick=()=>{scale/=1.2;applyTransform();}
-  document.getElementById('panLeft').onclick=()=>{offsetX-=50;applyTransform();}
-  document.getElementById('panRight').onclick=()=>{offsetX+=50;applyTransform();}
-  document.getElementById('panUp').onclick=()=>{offsetY-=50;applyTransform();}
-  document.getElementById('panDown').onclick=()=>{offsetY+=50;applyTransform();}
-  document.getElementById('resetView').onclick=()=>{scale=1;offsetX=0;offsetY=0;applyTransform();}
-
-  // Pauta
   function resizeA4(){
-    cvs.forEach(cv=>{cv.width=A4.w;cv.height=A4.h;
-      cv.style.width=(A4.w/DPR)+'px';cv.style.height=(A4.h/DPR)+'px';});
-    drawPauta(); drawGuide();
+    cvs.forEach(cv=>{
+      cv.width=A4.w; cv.height=A4.h;
+      cv.style.width=px2css(A4.w); cv.style.height=px2css(A4.h);
+    });
+    redrawAll();
   }
+  window.addEventListener('resize', resizeA4, {passive:true});
+
+  // ====== Controles ======
+  const savePngBtn = document.getElementById('savePng');
+  const printPdfBtn= document.getElementById('printPdf');
+  const clearBtn   = document.getElementById('clear');
+  const undoBtn    = document.getElementById('undo');
+  const redoBtn    = document.getElementById('redo');
+  const toolSel    = document.getElementById('tool');
+  const penSize    = document.getElementById('penSize');
+
+  const stepSel    = document.getElementById('pautaStep');
+  const margenSel  = document.getElementById('margenSel');
+  const colorSel   = document.getElementById('colorPauta');
+  const showPauta  = document.getElementById('showPauta');
+  const redrawBtn  = document.getElementById('redraw');
+
+  const ghostSelect= document.getElementById('ghostSelect');
+  const ghostText  = document.getElementById('ghostText');
+  const ghostSize  = document.getElementById('ghostSize');
+  const ghostShow  = document.getElementById('ghostShow');
+  const inlineWord = document.getElementById('inlineWord');
+  const animateGuide= document.getElementById('animateGuide');
+
+  const zoomInBtn  = document.getElementById('zoomIn');
+  const zoomOutBtn = document.getElementById('zoomOut');
+  const zoomResetBtn=document.getElementById('zoomReset');
+  const panHandBtn = document.getElementById('panHand');
+  const panLeftBtn = document.getElementById('panLeft');
+  const panRightBtn= document.getElementById('panRight');
+  const panUpBtn   = document.getElementById('panUp');
+  const panDownBtn = document.getElementById('panDown');
+  const centerToMarginBtn = document.getElementById('centerToMargin');
+
+  // ====== Vista (zoom / pan) ======
+  const view = { scale: 1, tx: 0, ty: 0, hand:false };
+  function applyView(ctx){
+    ctx.setTransform(view.scale,0,0,view.scale, view.tx, view.ty);
+  }
+  function screenToWorld(xCss, yCss){
+    // coordenadas de dispositivo (DPR) a mundo (sin transform)
+    const x = xCss*DPR, y = yCss*DPR;
+    return {
+      x: (x - view.tx)/view.scale,
+      y: (y - view.ty)/view.scale
+    };
+  }
+  function zoomBy(factor, centerXCss, centerYCss){
+    // zoom respecto a punto de pantalla (para sensación natural)
+    const before = screenToWorld(centerXCss, centerYCss);
+    view.scale = Math.min(4, Math.max(0.5, view.scale*factor));
+    const after = screenToWorld(centerXCss, centerYCss);
+    view.tx += (before.x - after.x)*view.scale;
+    view.ty += (before.y - after.y)*view.scale;
+    redrawAll();
+  }
+  function panBy(dxCss, dyCss){
+    const dx = dxCss*DPR, dy = dyCss*DPR;
+    view.tx += dx; view.ty += dy;
+    redrawAll();
+  }
+  zoomInBtn.onclick = ()=>zoomBy(1.15, window.innerWidth/2, window.innerHeight/2);
+  zoomOutBtn.onclick= ()=>zoomBy(1/1.15, window.innerWidth/2, window.innerHeight/2);
+  zoomResetBtn.onclick=()=>{ view.scale=1; view.tx=0; view.ty=0; redrawAll(); };
+  panLeftBtn.onclick = ()=>panBy( -40, 0);
+  panRightBtn.onclick= ()=>panBy(  40, 0);
+  panUpBtn.onclick   = ()=>panBy( 0, -40);
+  panDownBtn.onclick = ()=>panBy( 0,  40);
+  panHandBtn.onclick = ()=>{ view.hand=!view.hand; panHandBtn.classList.toggle('active', view.hand); };
+
+  // ====== Pauta ======
+  function palette(mode){
+    if(mode==='suave') return {base:'#f87171', sec:'#93c5fd', margin:'#22c55e'};
+    if(mode==='alto')  return {base:'#dc2626', sec:'#1d4ed8', margin:'#16a34a'};
+    return {base:getCSS('--base')||'#ef4444', sec:getCSS('--sec')||'#3b82f6', margin:getCSS('--margin')||'#10b981'};
+  }
+  function getCSS(v){ return getComputedStyle(document.documentElement).getPropertyValue(v).trim(); }
+
   function drawPauta(){
     const ctx=pauta.getContext('2d');
-    ctx.fillStyle='#fff';ctx.fillRect(0,0,pauta.width,pauta.height);
-    const step=mm2px(3), top=20*DPR;
-    pauta.dataset.step=step; pauta.dataset.top=top; pauta.dataset.period=step*4.6;
+    ctx.setTransform(1,0,0,1,0,0);
+    ctx.clearRect(0,0,pauta.width,pauta.height);
+
+    // Guardar parámetros por defecto (para la guía)
+    const step  = mm2px(parseFloat(stepSel.value));
+    const top   = 20*DPR;
+    const period= step*4.6;
+    pauta.dataset.topPad = String(top);
+    pauta.dataset.step   = String(step);
+    pauta.dataset.period = String(period);
+    pauta.dataset.margin = String(mm2px(parseFloat(margenSel.value)||0));
+
+    if(!showPauta.checked) return;
+
+    applyView(ctx);
+    const {base, sec, margin} = palette(colorSel.value);
+    const marginPx = mm2px(parseFloat(margenSel.value)||0);
+
+    // fondo
+    ctx.fillStyle="#fff"; ctx.fillRect(0,0,A4.w,A4.h);
+
+    // líneas
     let y=top;
-    while(y<pauta.height-top){
-      ctx.strokeStyle='#3b82f6';ctx.beginPath();ctx.moveTo(0,y);ctx.lineTo(pauta.width,y);ctx.stroke(); y+=step;
-      ctx.strokeStyle='#3b82f6';ctx.beginPath();ctx.moveTo(0,y);ctx.lineTo(pauta.width,y);ctx.stroke(); y+=step;
-      ctx.strokeStyle='#ef4444';ctx.lineWidth=1.5*DPR;ctx.beginPath();ctx.moveTo(0,y);ctx.lineTo(pauta.width,y);ctx.stroke();ctx.lineWidth=1; y+=step;
-      ctx.strokeStyle='#3b82f6';ctx.beginPath();ctx.moveTo(0,y);ctx.lineTo(pauta.width,y);ctx.stroke(); y+=step*1.6;
+    while(y<A4.h-top){
+      strokeH(ctx,y,1*DPR,sec); y+=step;        // ascendente
+      strokeH(ctx,y,1*DPR,sec); y+=step;        // techo
+      strokeH(ctx,y,1.5*DPR,base); y+=step;     // base
+      strokeH(ctx,y,1*DPR,sec); y+=step*1.6;    // descendente + espacio
     }
-    // margen
-    const marginX=mm2px(15); pauta.dataset.margin=marginX;
-    ctx.strokeStyle='#10b981';ctx.beginPath();ctx.moveTo(marginX,0);ctx.lineTo(marginX,pauta.height);ctx.stroke();
+    // margen vertical
+    if(marginPx>0){
+      ctx.beginPath(); ctx.moveTo(marginPx,0); ctx.lineTo(marginPx,A4.h);
+      ctx.lineWidth=2*DPR; ctx.strokeStyle=margin; ctx.stroke();
+    }
   }
+  function strokeH(ctx,y,w,c){ ctx.beginPath(); ctx.moveTo(0,y); ctx.lineTo(A4.w,y); ctx.lineWidth=w; ctx.strokeStyle=c; ctx.stroke(); }
 
-  // Guía
+  // ====== Guía (palabra en línea pegada al margen, primera línea roja) ======
+  function currentGuideText(){
+    const sel=ghostSelect.value;
+    if(!ghostShow.checked || sel==='__none__') return '';
+    if(sel==='__custom__'){
+      const t=(ghostText.value||'').trim();
+      return t || 'a';
+    }
+    return sel;
+  }
+  function firstBaseLineY(){
+    // primera base roja del primer grupo: top + 2*step (sin transform)
+    const top = parseFloat(pauta.dataset.topPad || 20*DPR);
+    const step= parseFloat(pauta.dataset.step   || mm2px(parseFloat(stepSel.value)));
+    return top + 2*step;
+  }
+  function marginXpx(){
+    return parseFloat(pauta.dataset.margin || mm2px(parseFloat(margenSel.value)||0));
+  }
+  // Dibujo de guía. Si "Palabra en línea" está activo, colocamos cada letra consecutiva desde el margen.
+  let animTick=0, animReq=null;
   function drawGuide(){
-    const ctx=ghost.getContext('2d'); ctx.clearRect(0,0,ghost.width,ghost.height);
-    const mode=guideMode.value; if(mode==='none') return;
-    const txt=guideText.value||''; if(!txt) return;
-    const fontPx=parseInt(guideSize.value,10)*DPR;
-    const step=parseFloat(pauta.dataset.step), top=parseFloat(pauta.dataset.top);
-    const baseY=top+2*step;
-    const marginX=parseFloat(pauta.dataset.margin);
+    const ctx=ghost.getContext('2d');
+    ctx.setTransform(1,0,0,1,0,0);
+    ctx.clearRect(0,0,ghost.width,ghost.height);
+    const txt=currentGuideText(); if(!txt) return;
 
-    ctx.save();
-    ctx.font=`${fontPx}px "Comic Sans MS", cursive, sans-serif`;
-    ctx.textBaseline='alphabetic'; ctx.fillStyle='rgba(0,0,0,0.25)';
+    applyView(ctx);
 
-    if(mode==='letter'){
-      ctx.textAlign='left';
-      ctx.fillText(txt[0], marginX+10*DPR, baseY);
-    }
-    if(mode==='word'){
-      ctx.textAlign='left';
-      let x=marginX+10*DPR;
-      for(let i=0;i<txt.length;i++){
-        ctx.fillText(txt[i], x, baseY);
-        x+=fontPx*0.7; // espacio proporcional
+    const fontPx=parseInt(ghostSize.value,10)*DPR;
+    ctx.font = `normal ${fontPx}px "Comic Sans MS","Segoe Print","Bradley Hand",system-ui,sans-serif`;
+    ctx.textBaseline='alphabetic';
+    ctx.fillStyle='rgba(17,24,39,.28)'; // relleno suave
+    ctx.strokeStyle='rgba(107,114,128,.6)'; // contorno
+    ctx.lineWidth=Math.max(1,Math.round(fontPx*0.06));
+
+    const baseY=firstBaseLineY();
+    let x = Math.max(8*DPR, marginXpx() + 8*DPR); // pegada al margen con pequeño padding
+
+    if(inlineWord.checked){
+      for(const ch of txt){
+        // medida y pintado letra a letra
+        ctx.fillText(ch, x, baseY);
+        ctx.strokeText(ch, x, baseY);
+        const w = ctx.measureText(ch).width;
+        x += w + fontPx*0.12; // tracking leve
       }
+    }else{
+      // palabra/letra centrada horizontalmente pero encajada a la base roja más cercana
+      const wTotal = ctx.measureText(txt).width;
+      const cx = A4.w/2;
+      const startX = cx - wTotal/2;
+      ctx.fillText(txt, startX, baseY);
+      ctx.strokeText(txt, startX, baseY);
     }
+
+    // Animación: flecha que recorre la palabra en línea (izq -> der)
+    if(animateGuide.checked){
+      const pathStart = Math.max(8*DPR, marginXpx() + 8*DPR);
+      const pathEnd   = inlineWord.checked ? x : (A4.w - 12*DPR);
+      const t = (animTick % 200) / 200; // 0..1
+      const px = pathStart + (pathEnd - pathStart) * t;
+      drawArrow(ctx, px, baseY - fontPx*0.55, px + 1, baseY - fontPx*0.55); // pequeña flecha horizontal
+    }
+  }
+  function drawArrow(ctx, x1, y1, x2, y2){
+    const len = 18*DPR;
+    ctx.save();
+    ctx.strokeStyle = '#10b981';
+    ctx.fillStyle   = '#10b981';
+    ctx.lineWidth = 2*DPR;
+    ctx.beginPath(); ctx.moveTo(x1,y1); ctx.lineTo(x2,y2); ctx.stroke();
+    const angle = Math.atan2(y2-y1, x2-x1);
+    ctx.beginPath();
+    ctx.moveTo(x2, y2);
+    ctx.lineTo(x2 - len*Math.cos(angle - Math.PI/6), y2 - len*Math.sin(angle - Math.PI/6));
+    ctx.lineTo(x2 - len*Math.cos(angle + Math.PI/6), y2 - len*Math.sin(angle + Math.PI/6));
+    ctx.closePath(); ctx.fill();
     ctx.restore();
   }
+  function animate(){
+    animTick++;
+    drawGuide();
+    animReq = requestAnimationFrame(animate);
+  }
+  animateGuide.addEventListener('change', ()=>{
+    if(animateGuide.checked && !animReq){ animReq = requestAnimationFrame(animate); }
+    if(!animateGuide.checked && animReq){ cancelAnimationFrame(animReq); animReq=null; redrawAll(); }
+  });
 
-  guideMode.onchange=drawGuide;
-  guideText.oninput=drawGuide;
-  guideSize.oninput=drawGuide;
+  // ====== Dibujo libre + Historial (undo/redo) con transform ======
+  const dctx=draw.getContext('2d'); dctx.lineCap='round'; dctx.lineJoin='round';
+  let drawing=false, points=[];
+  const history=[]; let redoStack=[];
+  function setComposite(){
+    dctx.globalCompositeOperation = (toolSel.value==='eraser') ? 'destination-out' : 'source-over';
+  }
+  function pointerWorld(e){
+    // posición en mundo (sin transform), desde coords CSS del puntero
+    const rect = draw.getBoundingClientRect();
+    const cssX = e.clientX - rect.left;
+    const cssY = e.clientY - rect.top;
+    return screenToWorld(cssX, cssY);
+  }
+  function startDraw(e){
+    if(view.hand){ // modo mano: arrastrar vista
+      draggingView=true; lastPan = {x:e.clientX, y:e.clientY};
+      e.preventDefault(); return;
+    }
+    e.preventDefault(); drawing=true; redoStack.length=0;
+    points=[pointerWorld(e)];
+    // pintamos incrementalmente con transform activa
+    dctx.save(); setComposite();
+    dctx.lineWidth=parseFloat(penSize.value)*DPR;
+    dctx.strokeStyle='#111';
+    // punto inicial
+    applyView(dctx);
+    dctx.beginPath(); dctx.arc(points[0].x,points[0].y,dctx.lineWidth/2,0,Math.PI*2); dctx.fill();
+  }
+  function moveDraw(e){
+    if(draggingView){
+      const dx = (e.clientX - lastPan.x), dy = (e.clientY - lastPan.y);
+      lastPan = {x:e.clientX, y:e.clientY};
+      panBy(dx, dy);
+      return;
+    }
+    if(!drawing) return;
+    const p = pointerWorld(e);
+    const prev = points[points.length-1];
+    points.push(p);
+    applyView(dctx);
+    dctx.beginPath();
+    const mx=(prev.x+p.x)/2, my=(prev.y+p.y)/2;
+    dctx.quadraticCurveTo(prev.x,prev.y,mx,my);
+    dctx.stroke();
+  }
+  function endDraw(){
+    if(draggingView){ draggingView=false; return; }
+    if(!drawing) return;
+    drawing=false;
+    history.push([{
+      mode: dctx.globalCompositeOperation,
+      size: dctx.lineWidth,
+      color:'#111',
+      path: points.slice()
+    }]);
+    dctx.restore();
+  }
+  function redrawDrawLayer(){
+    dctx.setTransform(1,0,0,1,0,0);
+    dctx.clearRect(0,0,draw.width,draw.height);
+    applyView(dctx);
+    const strokes = history.flat();
+    strokes.forEach(s=>{
+      dctx.save();
+      dctx.globalCompositeOperation=s.mode;
+      dctx.lineWidth=s.size;
+      dctx.strokeStyle=s.color;
+      if(s.path.length===1){
+        const p=s.path[0];
+        dctx.beginPath(); dctx.arc(p.x,p.y,dctx.lineWidth/2,0,Math.PI*2); dctx.fill();
+      }else{
+        dctx.beginPath();
+        for(let i=0;i<s.path.length-1;i++){
+          const a=s.path[i], b=s.path[i+1];
+          const mx=(a.x+b.x)/2, my=(a.y+b.y)/2;
+          if(i===0) dctx.moveTo(a.x,a.y);
+          dctx.quadraticCurveTo(a.x,a.y,mx,my);
+        }
+        dctx.stroke();
+      }
+      dctx.restore();
+    });
+  }
+  function undo(){ if(!history.length) return; redoStack.push(history.pop()); redrawDrawLayer(); }
+  function redo(){ if(!redoStack.length) return; history.push(redoStack.pop()); redrawDrawLayer(); }
+  function clearDraw(){ history.length=0; redoStack.length=0; redrawDrawLayer(); }
 
-  // Animar trazo (flecha)
-  document.getElementById('animate').onclick=()=>{
-    const ctx=anim.getContext('2d'); ctx.clearRect(0,0,anim.width,anim.height);
-    const step=parseFloat(pauta.dataset.step), top=parseFloat(pauta.dataset.top);
-    const baseY=top+2*step;
-    const marginX=parseFloat(pauta.dataset.margin);
-    let startX=marginX+10*DPR, startY=baseY-60*DPR;
-    let endX=startX+100*DPR, endY=baseY;
-    let progress=0;
-    function drawArrow(){
-      ctx.clearRect(0,0,anim.width,anim.height);
-      ctx.strokeStyle='red'; ctx.lineWidth=3*DPR;
-      ctx.beginPath();
-      ctx.moveTo(startX,startY);
-      ctx.lineTo(startX+(endX-startX)*progress, startY+(endY-startY)*progress);
-      ctx.stroke();
-      if(progress<1){ progress+=0.02; requestAnimationFrame(drawArrow);}
-      else {
-        // dibuja la cabeza de flecha
-        ctx.beginPath();
-        ctx.moveTo(endX,endY);
-        ctx.lineTo(endX-15*DPR,endY-10*DPR);
-        ctx.lineTo(endX-15*DPR,endY+10*DPR);
-        ctx.closePath();
-        ctx.fillStyle='red'; ctx.fill();
+  // Modo mano (pan con arrastre)
+  let draggingView=false, lastPan={x:0,y:0};
+
+  ['pointerdown','pointermove','pointerup','pointercancel','pointerleave'].forEach(ev=>{
+    draw.addEventListener(ev, e=>{
+      if(ev==='pointerdown') startDraw(e);
+      else if(ev==='pointermove') moveDraw(e);
+      else endDraw();
+    }, {passive:false});
+  });
+  toolSel.addEventListener('change', setComposite);
+
+  // ====== Exportar ======
+  function composeToCanvas(identity=false){
+    // identity=true -> sin zoom/pan (para PNG/PDF perfectos en A4)
+    const off=document.createElement('canvas'); off.width=A4.w; off.height=A4.h;
+    const o=off.getContext('2d');
+
+    // FONDO
+    o.fillStyle='#fff'; o.fillRect(0,0,off.width,off.height);
+
+    // --- Pauta ---
+    if(showPauta.checked){
+      // re-dibujar pauta SIN transform para exportar limpio
+      const step  = mm2px(parseFloat(stepSel.value));
+      const top   = 20*DPR;
+      const {base, sec, margin} = palette(colorSel.value);
+      const marginPx = mm2px(parseFloat(margenSel.value)||0);
+      let y=top;
+      while(y<A4.h-top){
+        strokeH(o,y,1*DPR,sec); y+=step;
+        strokeH(o,y,1*DPR,sec); y+=step;
+        strokeH(o,y,1.5*DPR,base); y+=step;
+        strokeH(o,y,1*DPR,sec); y+=step*1.6;
+      }
+      if(marginPx>0){
+        o.beginPath(); o.moveTo(marginPx,0); o.lineTo(marginPx,A4.h);
+        o.lineWidth=2*DPR; o.strokeStyle=margin; o.stroke();
       }
     }
-    drawArrow();
+
+    // --- Guía (sin transform, recalculando posiciones) ---
+    const fontPx=parseInt(ghostSize.value,10)*DPR;
+    const txt=currentGuideText();
+    if(txt){
+      o.font = `normal ${fontPx}px "Comic Sans MS","Segoe Print","Bradley Hand",system-ui,sans-serif`;
+      o.textBaseline='alphabetic';
+      o.fillStyle='rgba(17,24,39,.28)';
+      o.strokeStyle='rgba(107,114,128,.6)';
+      o.lineWidth=Math.max(1,Math.round(fontPx*0.06));
+      const baseY = firstBaseLineY();
+      let x = Math.max(8*DPR, mm2px(parseFloat(margenSel.value)||0) + 8*DPR);
+      if(inlineWord.checked){
+        for(const ch of txt){
+          o.fillText(ch, x, baseY);
+          o.strokeText(ch, x, baseY);
+          const w = o.measureText(ch).width;
+          x += w + fontPx*0.12;
+        }
+      }else{
+        const wTotal=o.measureText(txt).width;
+        const startX = A4.w/2 - wTotal/2;
+        o.fillText(txt, startX, baseY);
+        o.strokeText(txt, startX, baseY);
+      }
+    }
+
+    // --- Trazos (replay en identidad) ---
+    const strokes = history.flat();
+    strokes.forEach(s=>{
+      o.save();
+      o.globalCompositeOperation=s.mode;
+      o.lineWidth=s.size;
+      o.strokeStyle=s.color;
+      if(s.path.length===1){
+        const p=s.path[0];
+        o.beginPath(); o.arc(p.x,p.y,o.lineWidth/2,0,Math.PI*2); o.fill();
+      }else{
+        o.beginPath();
+        for(let i=0;i<s.path.length-1;i++){
+          const a=s.path[i], b=s.path[i+1];
+          const mx=(a.x+b.x)/2, my=(a.y+b.y)/2;
+          if(i===0) o.moveTo(a.x,a.y);
+          o.quadraticCurveTo(a.x,a.y,mx,my);
+        }
+        o.stroke();
+      }
+      o.restore();
+    });
+
+    return off;
+  }
+
+  savePngBtn.onclick=()=>{
+    const off=composeToCanvas(true);
+    const a=document.createElement('a');
+    a.href=off.toDataURL('image/png');
+    a.download='pauta-trazos.png';
+    a.click();
   };
 
-  // Init
-  resizeA4(); applyTransform();
+  printPdfBtn.onclick=()=>{
+    const off=composeToCanvas(true);
+    const url=off.toDataURL('image/png');
+    const w = window.open('', '_blank');
+    if(!w) return;
+    w.document.write(`<!DOCTYPE html><html><head><meta charset="utf-8">
+      <title>Imprimir — Pauta</title>
+      <style>
+        @page { size: A4; margin: 0; }
+        html,body{ height:100%; margin:0; }
+        .page{ width:210mm; height:297mm; display:flex; align-items:center; justify-content:center; }
+        img{ width:210mm; height:297mm; }
+        @media print { .hint{ display:none } }
+        body{ background:#fff }
+      </style>
+    </head><body>
+      <div class="page"><img src="${url}" alt="Pauta A4"></div>
+      <div class="hint" style="text-align:center;padding:8px;font-family:sans-serif;color:#666">
+        Usa «Guardar como PDF» para exportar en A4, sin márgenes.
+      </div>
+      <script>window.onload=function(){ setTimeout(()=>window.print(), 100); }<\/script>
+    </body></html>`);
+    w.document.close();
+  };
+
+  // ====== Redibujado global ======
+  function redrawAll(){
+    drawPauta();
+    drawGuide();
+    redrawDrawLayer();
+  }
+
+  // ====== Eventos ======
+  [stepSel,margenSel,colorSel,showPauta].forEach(el=>el.addEventListener('change', redrawAll));
+  redrawBtn.onclick=redrawAll;
+
+  ghostSelect.addEventListener('change',()=>{
+    const v=ghostSelect.value;
+    ghostText.style.display=(v==='__custom__')?'inline-block':'none';
+    if(v==='__none__'){ ghostShow.checked=false; } else { ghostShow.checked=true; }
+    redrawAll();
+  });
+  [ghostText,ghostSize,ghostShow,inlineWord].forEach(el=>el.addEventListener('input', redrawAll));
+
+  clearBtn.onclick = ()=>{ clearDraw(); };
+  undoBtn.onclick  = ()=>undo();
+  redoBtn.onclick  = ()=>redo();
+
+  // Pan con "mano"
+  draw.addEventListener('pointerdown', e=>{ if(view.hand){ e.preventDefault(); } }, {passive:false});
+
+  // ====== Init ======
+  resizeA4();
+  ghostSelect.value='a'; ghostShow.checked=true; inlineWord.checked=true;
+  setComposite();
+
+  // Si activas animación
+  animateGuide.checked=false;
 })();
 </script>
 </body>
