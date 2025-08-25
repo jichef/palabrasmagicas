@@ -15,36 +15,30 @@
     min-height:100vh;display:flex;flex-direction:column;
   }
 
-  /* Barra de herramientas */
+  /* Barra de herramientas (scroll si no cabe) */
   header{
-    flex:0 0 auto;
-    background:#fff;border-bottom:1px solid var(--border);
-    padding:.6rem .8rem;
-    display:flex;flex-wrap:wrap;gap:.6rem 1rem;align-items:center;
-    overflow-x:auto;  /* 👈 hace scroll si no cabe */
-    position:sticky;top:0;z-index:10;
+    flex:0 0 auto;background:#fff;border-bottom:1px solid var(--border);
+    padding:.6rem .8rem;display:flex;flex-wrap:wrap;gap:.6rem 1rem;align-items:center;
+    overflow-x:auto;position:sticky;top:0;z-index:10;
   }
   header .group{display:flex;flex-wrap:wrap;gap:.5rem;align-items:center}
   label{font-size:.9rem;color:#374151}
   select,input[type="text"]{
-    border:1px solid var(--border);border-radius:.5rem;
-    padding:.35rem .5rem;background:#fff
+    border:1px solid var(--border);border-radius:.5rem;padding:.35rem .5rem;background:#fff
   }
   input[type="range"]{width:120px}
   button{border:1px solid var(--border);border-radius:.5rem;background:#fff;padding:.45rem .65rem;cursor:pointer}
   button:active{transform:translateY(1px)}
 
-  /* Zona lienzos */
+  /* Zona de lienzos */
   main{
     flex:1 1 auto;display:flex;justify-content:center;align-items:center;
     overflow:auto;padding:8px;
   }
   canvas{position:absolute;inset:0;margin:auto;touch-action:none}
   #pautaCanvas{
-    background:#fff;z-index:1;
-    border:1px solid var(--border);border-radius:12px;
-    box-shadow:0 4px 16px rgba(0,0,0,.10);
-    pointer-events:none;
+    background:#fff;z-index:1;border:1px solid var(--border);border-radius:12px;
+    box-shadow:0 4px 16px rgba(0,0,0,.10);pointer-events:none;
   }
   #drawCanvas{z-index:2;border-radius:12px}
   #ghostCanvas{z-index:3;border-radius:12px;pointer-events:none}
@@ -52,12 +46,51 @@
 </head>
 <body>
 <header>
+  <!-- Archivo -->
   <div class="group">
-    <button id="redraw">🔄 Pauta</button>
+    <button id="savePng">💾 PNG</button>
+    <button id="printPdf">🖨️ Imprimir / PDF</button>
     <button id="clear">🗑️ Limpiar</button>
-    <button id="save">💾 PNG</button>
   </div>
 
+  <!-- Edición -->
+  <div class="group">
+    <label>Herramienta:</label>
+    <select id="tool">
+      <option value="pen" selected>✏️ Lápiz</option>
+      <option value="eraser">🩹 Goma</option>
+    </select>
+    <label>Grosor:</label>
+    <input id="penSize" type="range" min="1" max="16" value="4" />
+    <button id="undo" title="Deshacer">↶</button>
+    <button id="redo" title="Rehacer">↷</button>
+  </div>
+
+  <!-- Pauta -->
+  <div class="group">
+    <label>Pauta:</label>
+    <select id="pautaStep">
+      <option value="2.5">2.5 mm</option>
+      <option value="3" selected>3 mm</option>
+      <option value="4">4 mm</option>
+    </select>
+    <label>Margen:</label>
+    <select id="margenSel">
+      <option value="0">Sin margen</option>
+      <option value="10">10 mm</option>
+      <option value="15" selected>15 mm</option>
+    </select>
+    <label>Color:</label>
+    <select id="colorPauta">
+      <option value="clasica" selected>Clásica</option>
+      <option value="suave">Suave</option>
+      <option value="alto">Alto contraste</option>
+    </select>
+    <label><input type="checkbox" id="showPauta" checked/> Mostrar pauta</label>
+    <button id="redraw">🔄 Redibujar</button>
+  </div>
+
+  <!-- Guía -->
   <div class="group">
     <label>Letra:</label>
     <select id="ghostSelect">
@@ -85,12 +118,8 @@
     <input id="ghostText" type="text" placeholder="Escribe aquí…" style="display:none;width:12rem" />
     <label>Tamaño:</label>
     <input id="ghostSize" type="range" min="40" max="300" value="160" />
-    <label><input type="checkbox" id="ghostShow" checked /> Mostrar</label>
-  </div>
-
-  <div class="group">
-    <label>Grosor:</label>
-    <input id="penSize" type="range" min="1" max="16" value="4" />
+    <label><input type="checkbox" id="ghostShow" checked/> Mostrar</label>
+    <label><input type="checkbox" id="snapBaseline" checked/> Alineada a línea roja</label>
   </div>
 </header>
 
@@ -105,66 +134,105 @@
   const DPR = Math.max(1, window.devicePixelRatio||1);
   const mm2px = mm => mm*96/25.4*DPR;
   const px2css = px => (px/DPR)+'px';
-  const A4 = { w:mm2px(210), h:mm2px(297) };
-
-  const pauta=document.getElementById('pautaCanvas');
-  const draw=document.getElementById('drawCanvas');
-  const ghost=document.getElementById('ghostCanvas');
+  // Lienzos
+  const pauta = document.getElementById('pautaCanvas');
+  const draw  = document.getElementById('drawCanvas');
+  const ghost = document.getElementById('ghostCanvas');
   const cvs=[pauta,draw,ghost];
 
-  const ghostSelect=document.getElementById('ghostSelect');
-  const ghostText=document.getElementById('ghostText');
-  const ghostSize=document.getElementById('ghostSize');
-  const ghostShow=document.getElementById('ghostShow');
-  const penSize=document.getElementById('penSize');
+  // Controles
+  const savePngBtn = document.getElementById('savePng');
+  const printPdfBtn= document.getElementById('printPdf');
+  const clearBtn   = document.getElementById('clear');
+  const undoBtn    = document.getElementById('undo');
+  const redoBtn    = document.getElementById('redo');
+  const toolSel    = document.getElementById('tool');
+  const penSize    = document.getElementById('penSize');
 
-  // medidas pauta
-  const STEP = mm2px(3);
-  const TOP_PAD = 20*DPR;
-  const MARGIN_X = mm2px(15);
+  const stepSel    = document.getElementById('pautaStep');
+  const margenSel  = document.getElementById('margenSel');
+  const colorSel   = document.getElementById('colorPauta');
+  const showPauta  = document.getElementById('showPauta');
+  const redrawBtn  = document.getElementById('redraw');
+
+  const ghostSelect= document.getElementById('ghostSelect');
+  const ghostText  = document.getElementById('ghostText');
+  const ghostSize  = document.getElementById('ghostSize');
+  const ghostShow  = document.getElementById('ghostShow');
+  const snapBase   = document.getElementById('snapBaseline');
+
+  // A4 real
+  const A4 = { w:mm2px(210), h:mm2px(297) };
 
   function resizeA4(){
     cvs.forEach(cv=>{
-      cv.width=A4.w;cv.height=A4.h;
-      cv.style.width=px2css(A4.w);cv.style.height=px2css(A4.h);
+      cv.width=A4.w; cv.height=A4.h;
+      cv.style.width=px2css(A4.w); cv.style.height=px2css(A4.h);
     });
-    drawPauta(); drawGuide();
+    redrawAll();
   }
   window.addEventListener('resize', resizeA4, {passive:true});
 
+  // Paletas
+  function palette(mode){
+    if(mode==='suave') return {base:'#f87171', sec:'#93c5fd', margin:'#22c55e'};
+    if(mode==='alto')  return {base:'#dc2626', sec:'#1d4ed8', margin:'#16a34a'};
+    return {base:getCSS('--base')||'#ef4444', sec:getCSS('--sec')||'#3b82f6', margin:getCSS('--margin')||'#10b981'};
+  }
+  function getCSS(v){ return getComputedStyle(document.documentElement).getPropertyValue(v).trim(); }
+
+  // ===== Pauta =====
   function drawPauta(){
     const ctx=pauta.getContext('2d');
     ctx.clearRect(0,0,pauta.width,pauta.height);
-    ctx.fillStyle="#fff";ctx.fillRect(0,0,pauta.width,pauta.height);
+    pauta.dataset.topPad = String(20*DPR);   // default por si no hay pauta
+    pauta.dataset.step   = String(mm2px(parseFloat(stepSel.value)));
+    pauta.dataset.period = String(parseFloat(pauta.dataset.step)*4.6);
 
-    let y=TOP_PAD;
-    while(y<pauta.height-TOP_PAD){
-      strokeH(ctx,y,1*DPR,"#3b82f6"); y+=STEP;      // ascendente
-      strokeH(ctx,y,1*DPR,"#3b82f6"); y+=STEP;      // techo
-      strokeH(ctx,y,1.5*DPR,"#ef4444"); y+=STEP;    // base (roja)
-      strokeH(ctx,y,1*DPR,"#3b82f6"); y+=STEP*1.6;  // descendente + espacio
+    if(!showPauta.checked) return;
+
+    const step  = mm2px(parseFloat(stepSel.value));
+    const top   = 20*DPR;
+    const {base, sec, margin} = palette(colorSel.value);
+    const marginPx = mm2px(parseFloat(margenSel.value));
+
+    pauta.dataset.topPad = String(top);
+    pauta.dataset.step   = String(step);
+    pauta.dataset.period = String(step*4.6);
+
+    // fondo blanco para exportar
+    ctx.fillStyle="#fff"; ctx.fillRect(0,0,pauta.width,pauta.height);
+
+    let y=top;
+    while(y<pauta.height-top){
+      strokeH(ctx,y,1*DPR,sec); y+=step;        // ascendente
+      strokeH(ctx,y,1*DPR,sec); y+=step;        // techo
+      strokeH(ctx,y,1.5*DPR,base); y+=step;     // base (roja)
+      strokeH(ctx,y,1*DPR,sec); y+=step*1.6;    // descendente + espacio
     }
-    ctx.beginPath();ctx.moveTo(MARGIN_X,0);ctx.lineTo(MARGIN_X,pauta.height);
-    ctx.lineWidth=2*DPR;ctx.strokeStyle="#10b981";ctx.stroke();
+    if(marginPx>0){
+      ctx.beginPath(); ctx.moveTo(marginPx,0); ctx.lineTo(marginPx,pauta.height);
+      ctx.lineWidth=2*DPR; ctx.strokeStyle=margin; ctx.stroke();
+    }
   }
-  function strokeH(ctx,y,w,c){ctx.beginPath();ctx.moveTo(0,y);ctx.lineTo(pauta.width,y);ctx.lineWidth=w;ctx.strokeStyle=c;ctx.stroke();}
+  function strokeH(ctx,y,w,c){ ctx.beginPath(); ctx.moveTo(0,y); ctx.lineTo(pauta.width,y); ctx.lineWidth=w; ctx.strokeStyle=c; ctx.stroke(); }
 
-  function nearestBaseLineY(){
-    // baseline roja más cercana al centro
-    const centerY = ghost.height/2;
-    const first = TOP_PAD + 2*STEP;  // primera base
-    const period = STEP*4.6;
-    const k = Math.round((centerY-first)/period);
-    return first + k*period;
-  }
-
+  // ===== Guía (alineada a base roja) =====
   function currentGuideText(){
     const sel=ghostSelect.value;
-    if(!ghostShow.checked || sel==="__none__") return "";
-    if(sel==="__custom__") return (ghostText.value||"").trim();
+    if(!ghostShow.checked || sel==='__none__') return '';
+    if(sel==='__custom__') return (ghostText.value||'').trim();
     return sel;
   }
-
+  function baseLineNearestToCenter(){
+    const step   = parseFloat(pauta.dataset.step||mm2px(parseFloat(stepSel.value)));
+    const top    = parseFloat(pauta.dataset.topPad||20*DPR);
+    const period = parseFloat(pauta.dataset.period||step*4.6);
+    const firstBase = top + 2*step;
+    const centerY = ghost.height/2;
+    const k = Math.round((centerY-firstBase)/period);
+    return firstBase + k*period;
+  }
   function drawGuide(){
     const txt=currentGuideText();
     const ctx=ghost.getContext('2d');
@@ -172,50 +240,189 @@
     if(!txt) return;
 
     const fontPx=parseInt(ghostSize.value,10)*DPR;
-    const cx=ghost.width/2;
-    const baselineY=nearestBaseLineY();
+    const cx = ghost.width/2;
+    const baselineY = snapBase.checked ? baseLineNearestToCenter() : ghost.height/2;
 
     ctx.save();
-    ctx.font=`normal ${fontPx}px "Comic Sans MS","Segoe Print","Bradley Hand",system-ui,sans-serif`;
-    ctx.textAlign="center";ctx.textBaseline="alphabetic";
-    ctx.globalAlpha=0.28;ctx.fillStyle="#111";ctx.fillText(txt,cx,baselineY);
-    ctx.globalAlpha=0.6;ctx.lineWidth=Math.max(1,Math.round(fontPx*0.06));
-    ctx.strokeStyle="#6b7280";ctx.strokeText(txt,cx,baselineY);
+    ctx.font = `normal ${fontPx}px "Comic Sans MS","Segoe Print","Bradley Hand",system-ui,sans-serif`;
+    ctx.textAlign='center';
+    ctx.textBaseline='alphabetic';
+    ctx.globalAlpha=0.28; ctx.fillStyle='#111827';
+    ctx.fillText(txt, cx, baselineY);
+    ctx.globalAlpha=0.6;  ctx.lineWidth=Math.max(1,Math.round(fontPx*0.06));
+    ctx.strokeStyle='#6b7280';
+    ctx.strokeText(txt, cx, baselineY);
     ctx.restore();
   }
 
-  ghostSelect.addEventListener('change',()=>{
-    ghostText.style.display=(ghostSelect.value==='__custom__')?'inline-block':'none';
-    if(ghostSelect.value==='__none__'){ghostShow.checked=false;}else{ghostShow.checked=true;}
-    drawGuide();
-  });
-  [ghostText,ghostSize,ghostShow].forEach(el=>el.addEventListener('input',drawGuide));
-
-  // Dibujo libre
+  // ===== Dibujo libre + Historial (undo/redo) =====
   const dctx=draw.getContext('2d'); dctx.lineCap='round'; dctx.lineJoin='round';
-  let drawing=false;
-  function pos(e){const r=draw.getBoundingClientRect();return{x:(e.clientX-r.left)*DPR,y:(e.clientY-r.top)*DPR};}
-  draw.addEventListener('pointerdown',e=>{
-    e.preventDefault();drawing=true;const {x,y}=pos(e);
-    dctx.beginPath();dctx.moveTo(x,y);
-    dctx.lineWidth=parseFloat(penSize.value)*DPR;dctx.strokeStyle='#111';
-  },{passive:false});
-  draw.addEventListener('pointermove',e=>{if(drawing){const {x,y}=pos(e);dctx.lineTo(x,y);dctx.stroke();}},{passive:false});
-  ['pointerup','pointercancel','pointerleave'].forEach(ev=>draw.addEventListener(ev,()=>drawing=false,{passive:false}));
+  let drawing=false, points=[];
+  const history=[]; let redoStack=[];
 
-  // Botones
-  document.getElementById('redraw').onclick=drawPauta;
-  document.getElementById('clear').onclick=()=>dctx.clearRect(0,0,draw.width,draw.height);
-  document.getElementById('save').onclick=()=>{
-    const off=document.createElement('canvas');off.width=pauta.width;off.height=pauta.height;
-    const o=off.getContext('2d');o.drawImage(pauta,0,0);o.drawImage(ghost,0,0);o.drawImage(draw,0,0);
-    const a=document.createElement('a');a.href=off.toDataURL('image/png');a.download='pauta.png';a.click();
+  function setComposite(){
+    dctx.globalCompositeOperation = (toolSel.value==='eraser') ? 'destination-out' : 'source-over';
+  }
+  function pointerPos(e){
+    const r=draw.getBoundingClientRect();
+    return {x:(e.clientX-r.left)*DPR, y:(e.clientY-r.top)*DPR};
+  }
+  function startDraw(e){
+    e.preventDefault(); drawing=true; redoStack.length=0;
+    points=[pointerPos(e)];
+    dctx.save();
+    setComposite();
+    dctx.lineWidth=parseFloat(penSize.value)*DPR;
+    dctx.strokeStyle='#111';
+    // punto inicial (por si es un toque rápido)
+    dctx.beginPath(); dctx.arc(points[0].x,points[0].y,dctx.lineWidth/2,0,Math.PI*2); dctx.fill();
+  }
+  function moveDraw(e){
+    if(!drawing) return;
+    const p = pointerPos(e);
+    const prev = points[points.length-1];
+    points.push(p);
+    // segmento suavizado
+    dctx.beginPath();
+    const mx=(prev.x+p.x)/2, my=(prev.y+p.y)/2;
+    dctx.quadraticCurveTo(prev.x,prev.y,mx,my);
+    dctx.stroke();
+  }
+  function endDraw(){
+    if(!drawing) return;
+    drawing=false;
+    history.push([{
+      mode: dctx.globalCompositeOperation,
+      size: dctx.lineWidth,
+      color:'#111',
+      path: points.slice()
+    }]);
+    dctx.restore();
+  }
+  function redrawDrawLayer(){
+    dctx.clearRect(0,0,draw.width,draw.height);
+    const strokes = history.flat();
+    strokes.forEach(s=>{
+      dctx.save();
+      dctx.globalCompositeOperation=s.mode;
+      dctx.lineWidth=s.size;
+      dctx.strokeStyle=s.color;
+      // replay
+      if(s.path.length===1){
+        const p=s.path[0];
+        dctx.beginPath(); dctx.arc(p.x,p.y,dctx.lineWidth/2,0,Math.PI*2); dctx.fill();
+      }else{
+        dctx.beginPath();
+        for(let i=0;i<s.path.length-1;i++){
+          const a=s.path[i], b=s.path[i+1];
+          const mx=(a.x+b.x)/2, my=(a.y+b.y)/2;
+          if(i===0) dctx.moveTo(a.x,a.y);
+          dctx.quadraticCurveTo(a.x,a.y,mx,my);
+        }
+        dctx.stroke();
+      }
+      dctx.restore();
+    });
+  }
+  function undo(){
+    if(!history.length) return;
+    redoStack.push(history.pop());
+    redrawDrawLayer();
+  }
+  function redo(){
+    if(!redoStack.length) return;
+    history.push(redoStack.pop());
+    redrawDrawLayer();
+  }
+  function clearDraw(){
+    history.length=0; redoStack.length=0;
+    dctx.clearRect(0,0,draw.width,draw.height);
+  }
+
+  ['pointerdown','pointermove','pointerup','pointercancel','pointerleave'].forEach(ev=>{
+    draw.addEventListener(ev, e=>{
+      if(ev==='pointerdown') startDraw(e);
+      else if(ev==='pointermove') moveDraw(e);
+      else endDraw();
+    }, {passive:false});
+  });
+  toolSel.addEventListener('change', setComposite);
+  penSize.addEventListener('input', ()=>{/* live change next stroke */});
+
+  // ===== Exportar PNG =====
+  function composeToCanvas(){
+    const off=document.createElement('canvas'); off.width=pauta.width; off.height=pauta.height;
+    const o=off.getContext('2d');
+    // fondo blanco (siempre) para impresión
+    o.fillStyle='#fff'; o.fillRect(0,0,off.width,off.height);
+    if(showPauta.checked) o.drawImage(pauta,0,0);
+    o.drawImage(ghost,0,0);
+    o.drawImage(draw,0,0);
+    return off;
+  }
+  savePngBtn.onclick=()=>{
+    const off=composeToCanvas();
+    const a=document.createElement('a');
+    a.href=off.toDataURL('image/png');
+    a.download='pauta-trazos.png';
+    a.click();
   };
 
-  // Init
+  // ===== Imprimir / PDF (A4 real) =====
+  printPdfBtn.onclick=()=>{
+    const off=composeToCanvas();
+    const url=off.toDataURL('image/png');
+    const w = window.open('', '_blank');
+    if(!w) return; // pop-up bloqueado
+    w.document.write(`<!DOCTYPE html><html><head><meta charset="utf-8">
+      <title>Imprimir — Pauta</title>
+      <style>
+        @page { size: A4; margin: 0; }
+        html,body{ height:100%; margin:0; }
+        .page{ width:210mm; height:297mm; display:flex; align-items:center; justify-content:center; }
+        img{ width:210mm; height:297mm; }
+        @media print { .hint{ display:none } }
+        body{ background:#fff }
+      </style>
+    </head><body>
+      <div class="page"><img src="${url}" alt="Pauta A4"></div>
+      <div class="hint" style="text-align:center;padding:8px;font-family:sans-serif;color:#666">
+        Usa «Guardar como PDF» para exportar en A4, sin márgenes.
+      </div>
+      <script>window.onload=function(){ setTimeout(()=>window.print(), 100); }<\/script>
+    </body></html>`);
+    w.document.close();
+  };
+
+  // ===== Redibujado global =====
+  function redrawAll(){
+    drawPauta();
+    drawGuide();
+    redrawDrawLayer();
+  }
+
+  // Eventos de pauta
+  [stepSel,margenSel,colorSel,showPauta].forEach(el=>el.addEventListener('change', redrawAll));
+  redrawBtn.onclick=redrawAll;
+
+  // Eventos de guía
+  ghostSelect.addEventListener('change',()=>{
+    const v=ghostSelect.value;
+    ghostText.style.display=(v==='__custom__')?'inline-block':'none';
+    if(v==='__none__'){ ghostShow.checked=false; } else { ghostShow.checked=true; }
+    drawGuide();
+  });
+  [ghostText,ghostSize,ghostShow,snapBase].forEach(el=>el.addEventListener('input', drawGuide));
+
+  // Botones edicion
+  clearBtn.onclick = clearDraw;
+  undoBtn.onclick  = undo;
+  redoBtn.onclick  = redo;
+
+  // ===== Init =====
   resizeA4();
-  ghostSelect.value='a';ghostShow.checked=true;
-  drawGuide();
+  ghostSelect.value='a'; ghostShow.checked=true; snapBase.checked=true;
+  setComposite();
 })();
 </script>
 </body>
