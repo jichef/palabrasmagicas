@@ -10,21 +10,30 @@
     --sec:#3b82f6; --base:#ef4444;
   }
   *{box-sizing:border-box}
-  body{margin:0;background:var(--bg);font-family:system-ui, -apple-system, Segoe UI, Roboto, Helvetica, Arial}
+  body{margin:0;background:var(--bg);font-family:system-ui,-apple-system,Segoe UI,Roboto,Helvetica,Arial;height:100vh;display:flex;flex-direction:column}
+
+  /* === Barra de herramientas === */
   header{
-    position:sticky;top:0;z-index:10;background:#fff;border-bottom:1px solid var(--border);
-    padding:.6rem .8rem;display:flex;flex-wrap:wrap;gap:.6rem 1rem;align-items:center
+    flex:0 0 auto;
+    background:#fff;border-bottom:1px solid var(--border);
+    padding:.6rem .8rem;display:flex;flex-wrap:wrap;gap:.6rem 1rem;align-items:center;
+    position:sticky;top:0;z-index:10;
   }
   header .group{display:flex;flex-wrap:wrap;gap:.5rem;align-items:center}
   label{font-size:.9rem;color:#374151}
   select,input[type="text"],input[type="number"]{
     border:1px solid var(--border);border-radius:.5rem;padding:.35rem .5rem;background:#fff
   }
-  input[type="range"]{width:160px}
+  input[type="range"]{width:120px}
   button{border:1px solid var(--border);border-radius:.5rem;background:#fff;padding:.45rem .65rem;cursor:pointer}
   button:active{transform:translateY(1px)}
 
-  main{position:relative;display:flex;justify-content:center;align-items:center;height:calc(100vh - 84px);padding:8px}
+  /* === Zona de lienzos === */
+  main{
+    flex:1 1 auto;
+    display:flex;justify-content:center;align-items:center;
+    overflow:auto;padding:8px;
+  }
   canvas{position:absolute;inset:0;margin:auto;touch-action:none}
   #pautaCanvas{
     background:#fff;z-index:1;box-shadow:0 4px 16px rgba(0,0,0,.10);border:1px solid var(--border);border-radius:12px;
@@ -37,9 +46,9 @@
 <body>
 <header>
   <div class="group">
-    <button id="redraw" title="Redibujar pauta">🔄 Pauta</button>
-    <button id="clear" title="Limpiar trazos">🗑️ Limpiar</button>
-    <button id="save" title="Guardar PNG">💾 PNG</button>
+    <button id="redraw">🔄 Pauta</button>
+    <button id="clear">🗑️ Limpiar</button>
+    <button id="save">💾 PNG</button>
   </div>
 
   <div class="group">
@@ -71,7 +80,7 @@
   </div>
 
   <div class="group">
-    <label>Grosor lápiz:</label>
+    <label>Grosor:</label>
     <input id="penSize" type="range" min="1" max="16" value="4" />
   </div>
 </header>
@@ -84,176 +93,98 @@
 
 <script>
 (()=>{
-  // ===== Utilidades y refs =====
   const DPR = Math.max(1, window.devicePixelRatio||1);
-  const mm2px = mm => mm*96/25.4*DPR;            // px reales del dispositivo
-  const px2css = px => (px/DPR)+'px';            // tamaño visual CSS
-  const A4 = { w:mm2px(210), h:mm2px(297) };     // A4 a 96dpi, escalado a DPR
+  const mm2px = mm => mm*96/25.4*DPR;
+  const px2css = px => (px/DPR)+'px';
+  const A4 = { w:mm2px(210), h:mm2px(297) };
 
-  const pauta = document.getElementById('pautaCanvas');
-  const draw  = document.getElementById('drawCanvas');
-  const ghost = document.getElementById('ghostCanvas');
+  const pauta=document.getElementById('pautaCanvas');
+  const draw=document.getElementById('drawCanvas');
+  const ghost=document.getElementById('ghostCanvas');
   const cvs=[pauta,draw,ghost];
 
-  const btnRedraw = document.getElementById('redraw');
-  const btnClear  = document.getElementById('clear');
-  const btnSave   = document.getElementById('save');
+  const ghostSelect=document.getElementById('ghostSelect');
+  const ghostText=document.getElementById('ghostText');
+  const ghostSize=document.getElementById('ghostSize');
+  const ghostShow=document.getElementById('ghostShow');
+  const penSize=document.getElementById('penSize');
 
-  const ghostSelect = document.getElementById('ghostSelect');
-  const ghostText   = document.getElementById('ghostText');
-  const ghostSize   = document.getElementById('ghostSize');
-  const ghostShow   = document.getElementById('ghostShow');
-  const penSize     = document.getElementById('penSize');
-
-  // ===== Tamaño y disposición =====
   function resizeA4(){
     cvs.forEach(cv=>{
-      cv.width  = A4.w; cv.height = A4.h;
-      cv.style.width  = px2css(A4.w);
-      cv.style.height = px2css(A4.h);
+      cv.width=A4.w;cv.height=A4.h;
+      cv.style.width=px2css(A4.w);cv.style.height=px2css(A4.h);
     });
-    drawPauta();
-    drawGuide();
+    drawPauta();drawGuide();
   }
-  window.addEventListener('resize', resizeA4, {passive:true});
 
-  // ===== Pauta tipo Lamela (sólida) =====
   function drawPauta(){
-    const ctx = pauta.getContext('2d');
+    const ctx=pauta.getContext('2d');
     ctx.clearRect(0,0,pauta.width,pauta.height);
-
-    // fondo blanco (para exportar)
-    ctx.fillStyle = '#fff';
-    ctx.fillRect(0,0,pauta.width,pauta.height);
-
-    const step = mm2px(3);                 // 3 mm
-    const topPad = 20*DPR;
-    let y = topPad;
-
-    while (y < pauta.height - topPad){
-      // ascendente
-      strokeH(ctx, y, 1*DPR, '#3b82f6'); y += step;
-      // techo
-      strokeH(ctx, y, 1*DPR, '#3b82f6'); y += step;
-      // base (roja, un pelín más gruesa)
-      strokeH(ctx, y, 1.5*DPR, '#ef4444'); y += step;
-      // descendente + espacio entre grupos
-      strokeH(ctx, y, 1*DPR, '#3b82f6'); y += step*1.6;
+    ctx.fillStyle="#fff";ctx.fillRect(0,0,pauta.width,pauta.height);
+    const step=mm2px(3), topPad=20*DPR;let y=topPad;
+    while(y<pauta.height-topPad){
+      strokeH(ctx,y,1*DPR,"#3b82f6");y+=step;
+      strokeH(ctx,y,1*DPR,"#3b82f6");y+=step;
+      strokeH(ctx,y,1.5*DPR,"#ef4444");y+=step;
+      strokeH(ctx,y,1*DPR,"#3b82f6");y+=step*1.6;
     }
-
-    // margen vertical opcional (estilo cuaderno)
-    const marginX = mm2px(15);
-    ctx.beginPath();
-    ctx.moveTo(marginX, 0); ctx.lineTo(marginX, pauta.height);
-    ctx.lineWidth = 2*DPR; ctx.strokeStyle = '#10b981'; ctx.stroke();
+    const marginX=mm2px(15);
+    ctx.beginPath();ctx.moveTo(marginX,0);ctx.lineTo(marginX,pauta.height);
+    ctx.lineWidth=2*DPR;ctx.strokeStyle="#10b981";ctx.stroke();
   }
-  function strokeH(ctx, y, w, color){
-    ctx.beginPath(); ctx.moveTo(0, y); ctx.lineTo(pauta.width, y);
-    ctx.lineWidth = w; ctx.strokeStyle = color; ctx.stroke();
-  }
+  function strokeH(ctx,y,w,c){ctx.beginPath();ctx.moveTo(0,y);ctx.lineTo(pauta.width,y);ctx.lineWidth=w;ctx.strokeStyle=c;ctx.stroke();}
 
-  // ===== Guía de letra: sólida (no punteada) =====
   function currentGuideText(){
-    const sel = ghostSelect.value;
-    if(sel === '__none__' || !ghostShow.checked) return '';
-    if(sel === '__custom__'){
-      return (ghostText.value || '').trim();
-    }
-    return sel; // letra del selector
+    const sel=ghostSelect.value;
+    if(sel==="__none__"||!ghostShow.checked)return"";
+    if(sel==="__custom__")return ghostText.value.trim();
+    return sel;
   }
   function drawGuide(){
-    const txt = currentGuideText();
-    const ctx = ghost.getContext('2d');
+    const txt=currentGuideText();
+    const ctx=ghost.getContext("2d");
     ctx.clearRect(0,0,ghost.width,ghost.height);
-    if(!txt) return;
-
-    const fontPx = parseInt(ghostSize.value, 10) * DPR;
-
-    // Tipografía sólida, clara y legible
-    // (puedes cambiar por otra que te guste: "Comic Sans MS", "Cursive", "KG Primary Dots" si la incluyes, etc.)
+    if(!txt)return;
+    const fontPx=parseInt(ghostSize.value,10)*DPR;
     ctx.save();
-    ctx.font = `normal ${fontPx}px "Comic Sans MS", "Segoe Print", "Bradley Hand", system-ui, sans-serif`;
-    ctx.textAlign = 'center';
-    ctx.textBaseline = 'middle';
-
-    // relleno suave y contorno tenue (sólidos)
-    ctx.globalAlpha = 0.28;      // relleno clarito
-    ctx.fillStyle = '#111827';
-    ctx.fillText(txt, ghost.width/2, ghost.height/2);
-
-    ctx.globalAlpha = 0.6;       // contorno suave
-    ctx.lineWidth = Math.max(1, Math.round(fontPx * 0.06));
-    ctx.strokeStyle = '#6b7280';
-    ctx.strokeText(txt, ghost.width/2, ghost.height/2);
+    ctx.font=`normal ${fontPx}px "Comic Sans MS","Segoe Print","Bradley Hand",system-ui,sans-serif`;
+    ctx.textAlign="center";ctx.textBaseline="middle";
+    ctx.globalAlpha=0.28;ctx.fillStyle="#111";ctx.fillText(txt,ghost.width/2,ghost.height/2);
+    ctx.globalAlpha=0.6;ctx.lineWidth=Math.max(1,Math.round(fontPx*0.06));
+    ctx.strokeStyle="#6b7280";ctx.strokeText(txt,ghost.width/2,ghost.height/2);
     ctx.restore();
   }
 
-  ghostSelect.addEventListener('change', ()=>{
-    const isCustom = (ghostSelect.value === '__custom__');
-    const isNone   = (ghostSelect.value === '__none__');
-    ghostText.style.display = isCustom ? 'inline-block' : 'none';
-    // Si eliges "Ocultar guía", desmarca el toggle de mostrar
-    if(isNone){ ghostShow.checked = false; }
-    else { ghostShow.checked = true; }
+  ghostSelect.addEventListener("change",()=>{
+    const v=ghostSelect.value;
+    ghostText.style.display=(v==="__custom__")?"inline-block":"none";
+    if(v==="__none__"){ghostShow.checked=false}else{ghostShow.checked=true}
     drawGuide();
   });
-  ghostText.addEventListener('input', drawGuide);
-  ghostSize.addEventListener('input', drawGuide);
-  ghostShow.addEventListener('change', drawGuide);
+  [ghostText,ghostSize,ghostShow].forEach(el=>el.addEventListener("input",drawGuide));
 
-  // ===== Dibujo libre (lápiz) =====
-  const dctx = draw.getContext('2d');
-  dctx.lineCap = 'round'; dctx.lineJoin = 'round';
-
+  const dctx=draw.getContext("2d");dctx.lineCap="round";dctx.lineJoin="round";
   let drawing=false;
-  function pxy(e){
-    // Soporta táctil/ratón con precisión
-    const rect = draw.getBoundingClientRect();
-    const x = (e.clientX - rect.left) * DPR;
-    const y = (e.clientY - rect.top)  * DPR;
-    return {x,y};
-  }
-  draw.addEventListener('pointerdown', e=>{
-    e.preventDefault();
-    drawing=true;
-    const {x,y}=pxy(e);
-    dctx.beginPath();
-    dctx.moveTo(x,y);
-    dctx.lineWidth = parseFloat(penSize.value) * DPR;
-    dctx.strokeStyle = getComputedStyle(document.documentElement).getPropertyValue('--ink').trim() || '#111';
-  }, {passive:false});
-  draw.addEventListener('pointermove', e=>{
-    if(!drawing) return;
-    const {x,y}=pxy(e);
-    dctx.lineTo(x,y);
-    dctx.stroke();
-  }, {passive:false});
-  ['pointerup','pointercancel','pointerleave'].forEach(ev=>{
-    draw.addEventListener(ev, ()=>{ drawing=false; }, {passive:false});
-  });
+  function pos(e){const r=draw.getBoundingClientRect();return{ x:(e.clientX-r.left)*DPR,y:(e.clientY-r.top)*DPR};}
+  draw.addEventListener("pointerdown",e=>{
+    e.preventDefault();drawing=true;
+    const {x,y}=pos(e);dctx.beginPath();dctx.moveTo(x,y);
+    dctx.lineWidth=parseFloat(penSize.value)*DPR;dctx.strokeStyle="#111";
+  },{passive:false});
+  draw.addEventListener("pointermove",e=>{
+    if(!drawing)return;const {x,y}=pos(e);dctx.lineTo(x,y);dctx.stroke();
+  },{passive:false});
+  ["pointerup","pointercancel","pointerleave"].forEach(ev=>draw.addEventListener(ev,()=>drawing=false));
 
-  // ===== Botones =====
-  btnRedraw.addEventListener('click', drawPauta);
-  btnClear.addEventListener('click', ()=>{ dctx.clearRect(0,0,draw.width,draw.height); });
-  btnSave.addEventListener('click', ()=>{
-    const off = document.createElement('canvas');
-    off.width = pauta.width; off.height = pauta.height;
-    const o = off.getContext('2d');
-    // Composición final (pauta + guía + trazos)
-    o.drawImage(pauta,0,0);
-    o.drawImage(ghost,0,0);
-    o.drawImage(draw,0,0);
-    const a = document.createElement('a');
-    a.href = off.toDataURL('image/png');
-    a.download = 'pauta-trazos.png';
-    a.click();
-  });
+  document.getElementById("redraw").onclick=drawPauta;
+  document.getElementById("clear").onclick=()=>dctx.clearRect(0,0,draw.width,draw.height);
+  document.getElementById("save").onclick=()=>{
+    const off=document.createElement("canvas");off.width=pauta.width;off.height=pauta.height;
+    const o=off.getContext("2d");o.drawImage(pauta,0,0);o.drawImage(ghost,0,0);o.drawImage(draw,0,0);
+    const a=document.createElement("a");a.href=off.toDataURL();a.download="pauta.png";a.click();
+  };
 
-  // ===== Init =====
-  resizeA4();
-  // Estado inicial: guía oculta
-  ghostShow.checked = false;
-  drawGuide();
+  resizeA4();ghostShow.checked=false;drawGuide();
 })();
 </script>
 </body>
