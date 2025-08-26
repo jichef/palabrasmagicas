@@ -20,27 +20,67 @@
   :root{
     --ink:#111; --panel:#fff; --border:#d1d5db; --bg:#f3f4f6;
     --sec:#3b82f6; --base:#ef4444; --margin:#10b981;
+    --toolbar-bg:#ffffffcc; --toolbar-border:#e5e7eb; --shadow:0 6px 20px rgba(0,0,0,.12);
+    --pill:#f8fafc; --pill-border:#e5e7eb; --pill-hover:#eef2ff;
   }
+
+  *{box-sizing:border-box}
+
   body{
     margin:0;background:var(--bg);
     font-family:system-ui,-apple-system,Segoe UI,Roboto,Helvetica,Arial;
     min-height:100vh;display:flex;flex-direction:column;
   }
 
-  header{
-    flex:0 0 auto;background:#fff;border-bottom:1px solid var(--border);
-    padding:.6rem .8rem;display:flex;flex-wrap:wrap;gap:.6rem 1rem;align-items:center;
-    overflow-x:auto;position:sticky;top:0;z-index:10;
+  /* ===== Toolbar estilo app ===== */
+  header.toolbar{
+    position:sticky; top:8px; z-index:10;
+    margin:8px auto 8px; /* centrado */
+    max-width:1200px; width:calc(100% - 16px);
+    background:var(--toolbar-bg); backdrop-filter:saturate(1.2) blur(6px);
+    border:1px solid var(--toolbar-border);
+    border-radius:14px;
+    box-shadow:var(--shadow);
+    padding:.5rem .75rem;
+    display:flex; gap:.75rem; align-items:center; overflow-x:auto;
+    scrollbar-width:thin;
   }
-  header .group{display:flex;flex-wrap:wrap;gap:.5rem;align-items:center}
-  label{font-size:.9rem;color:#374151}
+  header.toolbar::-webkit-scrollbar{height:8px}
+  header.toolbar::-webkit-scrollbar-thumb{background:#d1d5db;border-radius:999px}
+
+  .tgroup{
+    display:flex; align-items:center; gap:.5rem;
+    padding-inline:.25rem; position:relative;
+  }
+  /* separadores entre grupos */
+  .tgroup + .tgroup{
+    margin-left:.25rem;
+  }
+  .tgroup + .tgroup::before{
+    content:""; position:absolute; left:-.375rem; top:6px; bottom:6px;
+    width:1px; background:linear-gradient(to bottom, transparent, #e5e7eb, transparent);
+  }
+
+  label{font-size:.85rem;color:#374151; white-space:nowrap}
+
   select,input[type="text"]{
-    border:1px solid var(--border);border-radius:.5rem;padding:.35rem .5rem;background:#fff
+    border:1px solid var(--pill-border); border-radius:999px;
+    padding:.35rem .65rem; background:var(--pill);
+    font-size:.9rem; outline:none;
   }
   input[type="range"]{width:120px}
-  button{border:1px solid var(--border);border-radius:.5rem;background:#fff;padding:.45rem .65rem;cursor:pointer}
+  button{
+    border:1px solid var(--pill-border); border-radius:999px;
+    background:var(--pill); padding:.45rem .7rem; cursor:pointer;
+    transition:background .15s ease, transform .02s ease;
+  }
+  button:hover{background:var(--pill-hover)}
   button:active{transform:translateY(1px)}
 
+  /* Icon-buttons más compactos */
+  .icon{padding:.45rem .6rem; min-width:2.2rem}
+
+  /* Contenido */
   main{
     flex:1 1 auto;display:flex;justify-content:center;align-items:flex-start;
     overflow:auto;padding:8px;
@@ -63,55 +103,56 @@
 </style>
 </head>
 <body>
-<header>
+
+<header class="toolbar" role="toolbar" aria-label="Barra de herramientas de práctica">
   <!-- Archivo -->
-  <div class="group">
-    <button id="savePng">💾 PNG</button>
-    <button id="printPdf">🖨️ Imprimir / PDF</button>
-    <button id="clear">🗑️ Limpiar</button>
+  <div class="tgroup" aria-label="Archivo">
+    <button id="savePng" class="icon" title="Guardar PNG">💾</button>
+    <button id="printPdf" class="icon" title="Imprimir / PDF">🖨️</button>
+    <button id="clear" class="icon" title="Limpiar">🗑️</button>
   </div>
 
   <!-- Edición -->
-  <div class="group">
-    <label>Herramienta:</label>
+  <div class="tgroup" aria-label="Edición">
+    <label>Herramienta</label>
     <select id="tool">
       <option value="pen" selected>✏️ Lápiz</option>
       <option value="eraser">🩹 Goma</option>
     </select>
-    <label>Grosor:</label>
+    <label>Grosor</label>
     <input id="penSize" type="range" min="1" max="16" value="4" />
-    <button id="undo" title="Deshacer">↶</button>
-    <button id="redo" title="Rehacer">↷</button>
+    <button id="undo" class="icon" title="Deshacer">↶</button>
+    <button id="redo" class="icon" title="Rehacer">↷</button>
   </div>
 
   <!-- Pauta -->
-  <div class="group">
-    <label>Paso:</label>
+  <div class="tgroup" aria-label="Pauta">
+    <label>Paso</label>
     <select id="pautaStep">
       <option value="2.5">2.5 mm</option>
       <option value="3">3 mm</option>
       <option value="4" selected>4 mm</option>
     </select>
-    <label>Margen:</label>
+    <label>Margen</label>
     <select id="margenSel">
       <option value="0">Sin margen</option>
       <option value="10">10 mm</option>
       <option value="15" selected>15 mm</option>
     </select>
-    <label>Color:</label>
+    <label>Color</label>
     <select id="colorPauta">
       <option value="clasica">Clásica</option>
       <option value="suave" selected>Suave</option>
       <option value="alto">Alto contraste</option>
     </select>
-    <label><input type="checkbox" id="showPauta" checked/> Mostrar pauta</label>
+    <label><input type="checkbox" id="showPauta" checked/> Pauta</label>
     <label><input type="checkbox" id="showGrid" checked/> Cuadrícula</label>
-    <button id="redraw">🔄 Redibujar</button>
+    <button id="redraw" class="icon" title="Redibujar">🔄</button>
   </div>
 
   <!-- Guía -->
-  <div class="group">
-    <label>Letra:</label>
+  <div class="tgroup" aria-label="Guía">
+    <label>Letra</label>
     <select id="ghostSelect">
       <optgroup label="Minúsculas">
         <option>a</option><option>b</option><option>c</option><option>d</option><option>e</option>
@@ -135,9 +176,9 @@
       </optgroup>
     </select>
     <input id="ghostText" type="text" placeholder="Escribe aquí…" style="display:none;width:12rem" />
-    <label>Tamaño:</label>
-    <input id="ghostSize" type="range" min="40" max="300" value="40" />
-    <label>Vía:</label>
+    <label>Tamaño</label>
+    <input id="ghostSize" type="range" min="40" max="300" value="80" />
+    <label>Vía</label>
     <select id="viaIndex">
       <option value="1">1ª</option>
       <option value="2" selected>2ª</option>
@@ -150,9 +191,9 @@
   </div>
 
   <!-- Anilla -->
-  <div class="group">
+  <div class="tgroup" aria-label="Anilla">
     <label><input type="checkbox" id="showSpiral" checked/> Anilla</label>
-    <label>Lado:</label>
+    <label>Lado</label>
     <select id="spiralSide">
       <option value="left" selected>Izquierda</option>
       <option value="right">Derecha</option>
@@ -160,10 +201,10 @@
   </div>
 
   <!-- Vista (Zoom/Pan) -->
-  <div class="group">
-    <button id="zoomIn" title="Acercar">＋</button>
-    <button id="zoomOut" title="Alejar">－</button>
-    <button id="zoomReset" title="Restablecer vista">⟲</button>
+  <div class="tgroup" aria-label="Vista">
+    <button id="zoomIn" class="icon" title="Acercar">＋</button>
+    <button id="zoomOut" class="icon" title="Alejar">－</button>
+    <button id="zoomReset" class="icon" title="Restablecer vista">⟲</button>
     <label><input type="checkbox" id="panMode" /> 👋 Pan</label>
   </div>
 </header>
