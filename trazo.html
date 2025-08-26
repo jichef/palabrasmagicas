@@ -4,6 +4,7 @@
 <meta charset="utf-8" />
 <meta name="viewport" content="width=device-width,initial-scale=1,viewport-fit=cover" />
 <title>Pauta Lamela — práctica de trazos</title>
+<link rel="icon" href='data:image/svg+xml,<svg xmlns="http://www.w3.org/2000/svg"/>'>
 <style>
   /* === Fuente escolar === */
   @font-face {
@@ -190,18 +191,12 @@
   const ghost = document.getElementById('ghostCanvas');
   const cvs=[pauta,draw,ghost];
 
-  function resizeA4(){
-    cvs.forEach(cv=>{
-      cv.width  = A4.w;
-      cv.height = A4.h;
-      cv.style.width  = px2css(A4.w);
-      cv.style.height = px2css(A4.h);
-    });
-    paper.style.width  = px2css(A4.w);
-    paper.style.height = px2css(A4.h);
-    redrawAll();
-  }
-  window.addEventListener('resize', resizeA4, {passive:true});
+  // ====== Estado de vista / dibujo ======
+  const view = { scale: 1, tx: 0, ty: 0, hand:false };
+  let draggingView=false, lastPan={x:0,y:0};
+  const dctx=draw.getContext('2d'); dctx.lineCap='round'; dctx.lineJoin='round';
+  let drawing=false, points=[];
+  const history=[]; let redoStack=[];
 
   // ====== Controles ======
   const savePngBtn = document.getElementById('savePng');
@@ -239,8 +234,7 @@
   const showSpiral = document.getElementById('showSpiral');
   const spiralSide = document.getElementById('spiralSide');
 
-  // ====== Vista (zoom / pan) ======
-  const view = { scale: 1, tx: 0, ty: 0, hand:false };
+  // ====== Utilidades de vista ======
   function applyView(ctx){ ctx.setTransform(view.scale,0,0,view.scale, view.tx, view.ty); }
   function screenToWorld(xCss, yCss){
     const x = xCss*DPR, y = yCss*DPR;
@@ -255,29 +249,21 @@
     redrawAll();
   }
   function panBy(dxCss, dyCss){ view.tx += dxCss*DPR; view.ty += dyCss*DPR; redrawAll(); }
-  zoomInBtn.onclick = ()=>zoomBy(1.15, window.innerWidth/2, window.innerHeight/2);
-  zoomOutBtn.onclick= ()=>zoomBy(1/1.15, window.innerWidth/2, window.innerHeight/2);
-  zoomResetBtn.onclick=()=>{ view.scale=1; view.tx=0; view.ty=0; redrawAll(); };
-  panLeftBtn.onclick = ()=>panBy( -40, 0);
-  panRightBtn.onclick= ()=>panBy(  40, 0);
-  panUpBtn.onclick   = ()=>panBy( 0, -40);
-  panDownBtn.onclick = ()=>panBy( 0,  40);
-  panHandBtn.onclick = ()=>{ view.hand=!view.hand; panHandBtn.classList.toggle('active', view.hand); };
 
-  // ====== Pauta ======
+  // ====== Pauta / paletas ======
+  function getCSS(v){ return getComputedStyle(document.documentElement).getPropertyValue(v).trim(); }
   function palette(mode){
     if(mode==='suave') return {base:'#f87171', sec:'#93c5fd', margin:'#22c55e'};
     if(mode==='alto')  return {base:'#dc2626', sec:'#1d4ed8', margin:'#16a34a'};
     return {base:getCSS('--base')||'#ef4444', sec:getCSS('--sec')||'#3b82f6', margin:getCSS('--margin')||'#10b981'};
   }
-  function getCSS(v){ return getComputedStyle(document.documentElement).getPropertyValue(v).trim(); }
+  function strokeH(ctx,y,w,c){ ctx.beginPath(); ctx.moveTo(0,y); ctx.lineTo(A4.w,y); ctx.lineWidth=w; ctx.strokeStyle=c; ctx.stroke(); }
 
   function drawPauta(){
     const ctx=pauta.getContext('2d');
     ctx.setTransform(1,0,0,1,0,0);
     ctx.clearRect(0,0,pauta.width,pauta.height);
 
-    // Parámetros base (para guía)
     const step  = mm2px(parseFloat(stepSel.value));
     const top   = 20*DPR;
     const period= step*4.6;
@@ -287,13 +273,14 @@
     pauta.dataset.period = String(period);
     pauta.dataset.margin = String(marginPx);
 
-    // 🔒 Papel blanco
+    // Papel blanco
     ctx.fillStyle = '#fff';
     ctx.fillRect(0,0,pauta.width,pauta.height);
 
     if(showPauta.checked){
       applyView(ctx);
       const {base, sec, margin} = palette(colorSel.value);
+
       // Líneas
       let y=top;
       while(y<A4.h-top){
@@ -302,7 +289,7 @@
         strokeH(ctx,y,1.5*DPR,base); y+=step;     // base
         strokeH(ctx,y,1*DPR,sec); y+=step*1.6;    // descendente + espacio
       }
-      // Margen vertical (si se desea)
+      // Margen vertical
       if(marginPx>0){
         ctx.beginPath(); ctx.moveTo(marginPx,0); ctx.lineTo(marginPx,A4.h);
         ctx.lineWidth=2*DPR; ctx.strokeStyle=margin; ctx.stroke();
@@ -312,7 +299,7 @@
         drawSpiral(ctx, spiralSide.value, {marginPx});
       }
     }else{
-      // Si se oculta la pauta pero se quiere anilla visible
+      // Si está oculta la pauta, aún así puede mostrarse la anilla
       const ctx2=pauta.getContext('2d');
       applyView(ctx2);
       if(showSpiral.checked){
@@ -320,14 +307,13 @@
       }
     }
   }
-  function strokeH(ctx,y,w,c){ ctx.beginPath(); ctx.moveTo(0,y); ctx.lineTo(A4.w,y); ctx.lineWidth=w; ctx.strokeStyle=c; ctx.stroke(); }
 
   // ====== Anilla (espiral) ======
   function drawSpiral(ctx, side='left', opts={}){
-    const holeR   = mm2px(3.2);       // radio del agujero
-    const pitch   = mm2px(18);        // separación entre agujeros
-    const stripW  = mm2px(10);        // franja perforada
-    const inset   = mm2px(4);         // separación de la franja respecto al borde
+    const holeR   = mm2px(3.2);  // radio agujero
+    const pitch   = mm2px(18);   // separación vertical
+    const stripW  = mm2px(10);   // franja perforada
+    const inset   = mm2px(4);    // separación desde el borde
     const topPad  = mm2px(12);
     const bottomPad = mm2px(12);
     const xStripLeft  = inset;
@@ -336,26 +322,21 @@
     const xStrip = (side==='left') ? xStripLeft : xStripRight;
     const xCenter = xStrip + (side==='left' ? stripW - holeR*0.9 : holeR*0.9);
 
-    // Franja perforada
+    // Franja
     ctx.save();
     ctx.fillStyle = '#f5f5f5';
     ctx.fillRect(xStrip, 0, stripW, A4.h);
-
-    // Sombra de borde de franja
+    // Sombra
     ctx.fillStyle = 'rgba(0,0,0,.06)';
     if(side==='left'){ ctx.fillRect(xStrip+stripW-2*DPR,0,2*DPR,A4.h); }
     else{ ctx.fillRect(xStrip,0,2*DPR,A4.h); }
 
-    // Agujeros
+    // Agujeros + “alambre”
     ctx.fillStyle = '#d1d5db';
     ctx.strokeStyle = '#9ca3af';
     ctx.lineWidth = 1*DPR;
     for(let y=topPad; y<=A4.h-bottomPad; y+=pitch){
-      ctx.beginPath();
-      ctx.arc(xCenter, y, holeR, 0, Math.PI*2);
-      ctx.fill();
-      ctx.stroke();
-      // "alambre" visible (pequeño arco dentro)
+      ctx.beginPath(); ctx.arc(xCenter, y, holeR, 0, Math.PI*2); ctx.fill(); ctx.stroke();
       ctx.beginPath();
       const wireR = holeR*0.55;
       ctx.arc(xCenter + (side==='left'?-holeR*0.25:holeR*0.25), y, wireR, -Math.PI/2, Math.PI/2);
@@ -388,7 +369,6 @@
   }
   function marginXpx(){ return parseFloat(pauta.dataset.margin || mm2px(parseFloat(margenSel.value)||0)); }
 
-  // Animación flecha
   let animTick=0, animReq=null;
   function drawArrow(ctx, x1, y1, x2, y2){
     const len = 18*DPR;
@@ -422,7 +402,7 @@
     ctx.lineWidth=Math.max(1,Math.round(fontPx*0.06));
 
     const baseY=baseLineForGuide();
-    let x = Math.max(8*DPR, marginXpx() + 8*DPR); // pegado al margen con pequeño padding
+    let x = Math.max(8*DPR, marginXpx() + 8*DPR); // pegado al margen con padding
 
     if(inlineWord.checked){
       for(const ch of txt){
@@ -446,31 +426,8 @@
       drawArrow(ctx, px, baseY - fontPx*0.55, px + 1, baseY - fontPx*0.55);
     }
   }
-  function animate(){
-    animTick++;
-    drawGuide();
-    animReq = requestAnimationFrame(animate);
-  }
-  animateGuide.addEventListener('change', ()=>{
-    if(animateGuide.checked && !animReq){ animReq = requestAnimationFrame(animate); }
-    if(!animateGuide.checked && animReq){ cancelAnimationFrame(animReq); animReq=null; redrawAll(); }
-  });
 
-  // Centrar vista al margen (útil tras pan/zoom)
-  centerToMarginBtn.onclick = ()=>{
-    const mx = marginXpx() + 60*DPR;
-    const targetWorld = {x: mx, y: baseLineForGuide()};
-    const centerCss = {x: window.innerWidth/2, y: window.innerHeight/2};
-    const before = screenToWorld(centerCss.x, centerCss.y);
-    view.tx += (before.x - targetWorld.x) * view.scale;
-    view.ty += (before.y - targetWorld.y) * view.scale;
-    redrawAll();
-  };
-
-  // ====== Dibujo / Historial ======
-  const dctx=draw.getContext('2d'); dctx.lineCap='round'; dctx.lineJoin='round';
-  let drawing=false, points=[];
-  const history=[]; let redoStack=[];
+  // ====== Dibujo libre ======
   function setComposite(){ dctx.globalCompositeOperation = (toolSel.value==='eraser') ? 'destination-out' : 'source-over'; }
   function pointerWorld(e){
     const rect = draw.getBoundingClientRect();
@@ -478,8 +435,6 @@
     const cssY = e.clientY - rect.top;
     return screenToWorld(cssX, cssY);
   }
-
-  let draggingView=false, lastPan={x:0,y:0};
   function startDraw(e){
     if(view.hand){ draggingView=true; lastPan={x:e.clientX,y:e.clientY}; e.preventDefault(); return; }
     e.preventDefault(); drawing=true; redoStack.length=0;
@@ -555,6 +510,7 @@
     }, {passive:false});
   });
   toolSel.addEventListener('change', setComposite);
+  draw.addEventListener('pointerdown', e=>{ if(view.hand){ e.preventDefault(); } }, {passive:false});
 
   // ====== Exportar ======
   function composeToCanvas(){
@@ -581,14 +537,10 @@
         o.beginPath(); o.moveTo(marginPx,0); o.lineTo(marginPx,A4.h);
         o.lineWidth=2*DPR; o.strokeStyle=margin; o.stroke();
       }
-      // Anilla (sin transform)
-      if(showSpiral.checked){
-        drawSpiral(o, spiralSide.value, {marginPx});
-      }
+      // Anilla
+      if(showSpiral.checked){ drawSpiral(o, spiralSide.value, {marginPx}); }
     }else{
-      if(showSpiral.checked){
-        drawSpiral(o, spiralSide.value, {marginPx: mm2px(parseFloat(margenSel.value)||0)});
-      }
+      if(showSpiral.checked){ drawSpiral(o, spiralSide.value, {marginPx: mm2px(parseFloat(margenSel.value)||0)}); }
     }
 
     // Guía (sin transform)
@@ -677,8 +629,20 @@
     w.document.close();
   };
 
-  // ====== Redibujado global ======
+  // ====== Redibujado global (declarada ANTES de usarse) ======
   function redrawAll(){ drawPauta(); drawGuide(); redrawDrawLayer(); }
+
+  // ====== Resize A4 (no llama internamente a redrawAll) ======
+  function resizeA4(){
+    cvs.forEach(cv=>{
+      cv.width  = A4.w;
+      cv.height = A4.h;
+      cv.style.width  = px2css(A4.w);
+      cv.style.height = px2css(A4.h);
+    });
+    paper.style.width  = px2css(A4.w);
+    paper.style.height = px2css(A4.h);
+  }
 
   // ====== Eventos ======
   [stepSel,margenSel,colorSel,showPauta,showSpiral,spiralSide].forEach(el=>el.addEventListener('change', redrawAll));
@@ -696,20 +660,45 @@
   undoBtn.onclick  = ()=>undo();
   redoBtn.onclick  = ()=>redo();
 
-  // Pan con "mano" (arrastrar lienzo en draw)
+  // Pan con "mano"
   draw.addEventListener('pointerdown', e=>{ if(view.hand){ e.preventDefault(); } }, {passive:false});
 
+  // Repaint al redimensionar ventana (ahora seguro)
+  window.addEventListener('resize', ()=>{ resizeA4(); redrawAll(); }, {passive:true});
+
   // ====== Init ======
-  showPauta.checked = true; // asegurar pauta visible
-  resizeA4();
-  ghostSelect.value='a'; ghostShow.checked=true; inlineWord.checked=true; viaIndex.value='2';
-  setComposite();
+  showPauta.checked = true;           // asegurar pauta visible
+  viaIndex.value = '2';               // por defecto 2ª vía
+  resizeA4();                         // preparar tamaños
+  // esperar fuente -> pintar
   if (document.fonts && document.fonts.ready) {
     document.fonts.ready.then(()=>{ redrawAll(); });
   } else {
     redrawAll();
   }
+  // Herramienta y animación
+  setComposite();
   animateGuide.checked=false;
+
+  // Botones de vista
+  zoomInBtn.onclick = ()=>zoomBy(1.15, window.innerWidth/2, window.innerHeight/2);
+  zoomOutBtn.onclick= ()=>zoomBy(1/1.15, window.innerWidth/2, window.innerHeight/2);
+  zoomResetBtn.onclick=()=>{ view.scale=1; view.tx=0; view.ty=0; redrawAll(); };
+  panLeftBtn.onclick = ()=>panBy( -40, 0);
+  panRightBtn.onclick= ()=>panBy(  40, 0);
+  panUpBtn.onclick   = ()=>panBy( 0, -40);
+  panDownBtn.onclick = ()=>panBy( 0,  40);
+  panHandBtn.onclick = ()=>{ view.hand=!view.hand; panHandBtn.classList.toggle('active', view.hand); };
+
+  centerToMarginBtn.onclick = ()=>{
+    const mx = marginXpx() + 60*DPR;
+    const targetWorld = {x: mx, y: baseLineForGuide()};
+    const centerCss = {x: window.innerWidth/2, y: window.innerHeight/2};
+    const before = screenToWorld(centerCss.x, centerCss.y);
+    view.tx += (before.x - targetWorld.x) * view.scale;
+    view.ty += (before.y - targetWorld.y) * view.scale;
+    redrawAll();
+  };
 })();
 </script>
 </body>
