@@ -170,7 +170,16 @@
   const px2css = px => (px/DPR)+'px';
   const A4 = { w:mm2px(210), h:mm2px(297) };
   const SPIRAL_W = mm2px(10); // ancho del canvas de anilla
-  const HEADER_TEXT = "Granada  —  22 de marzo de 2025"; // ⬅️ cabecera fija 1ª vía
+
+  // Fecha automática (español)
+  function formatTodayEs(){
+    const hoy = new Date();
+    // fuerza formato «22 de marzo de 2025»
+    return new Intl.DateTimeFormat('es-ES', {
+      day:'numeric', month:'long', year:'numeric'
+    }).format(hoy);
+  }
+  function getHeaderText(){ return `Granada  —  ${formatTodayEs()}`; }
 
   // ====== Elementos ======
   const paper = document.getElementById('paper');
@@ -209,13 +218,11 @@
   function palette(mode){
     if(mode==='suave') return {base:'#f87171', sec:'#93c5fd', margin:'#22c55e'};
     if(mode==='alto')  return {base:'#dc2626', sec:'#1d4ed8', margin:'#16a34a'};
-    // clásica por defecto
-    return { base:'#ef4444', sec:'#3b82f6', margin:'#10b981' };
+    return { base:'#ef4444', sec:'#3b82f6', margin:'#10b981' }; // clásica
   }
 
   // ====== Tamaños y colocación ======
   function resizeA4(){
-    // cada canvas al tamaño interno y CSS del A4
     cvs.forEach(cv=>{
       cv.width=A4.w; cv.height=A4.h;
       cv.style.width=px2css(A4.w); cv.style.height=px2css(A4.h);
@@ -304,7 +311,7 @@
     }
   }
 
-  // ====== Guía (cabecera fija + texto de práctica) ======
+  // ====== Guía (cabecera fija automática + texto de práctica) ======
   function currentGuideText(){
     const sel=ghostSelect.value;
     if(!ghostShow.checked || sel==='__none__') return '';
@@ -324,20 +331,20 @@
   }
   function marginXpx(){ return parseFloat(pauta.dataset.margin || mm2px(parseFloat(margenSel.value)||0)); }
 
-  // Cabecera fija en 1ª vía
+  // Cabecera fija (1ª vía) con fecha automática
   function drawHeaderLine(ctx){
-    const fontPx=Math.max(48*DPR, parseInt(ghostSize.value,10)*0.55*DPR); // un poco más pequeña que la guía
+    const header = getHeaderText();
+    const fontPx = Math.max(48*DPR, parseInt(ghostSize.value,10)*0.55*DPR);
     ctx.save();
     ctx.font = `normal ${fontPx}px "EscolarG", system-ui, sans-serif`;
     ctx.textBaseline='alphabetic';
-    ctx.fillStyle='rgba(17,24,39,.40)'; // algo más visible que la guía
+    ctx.fillStyle='rgba(17,24,39,.40)';
     ctx.strokeStyle='rgba(107,114,128,.55)';
     ctx.lineWidth=Math.max(1,Math.round(fontPx*0.06));
     const baseY = firstBaseLineY();
     let x = Math.max(8*DPR, marginXpx() + 8*DPR);
-    // Texto único “Granada — 22 de marzo de 2025”
-    ctx.fillText(HEADER_TEXT, x, baseY);
-    ctx.strokeText(HEADER_TEXT, x, baseY);
+    ctx.fillText(header, x, baseY);
+    ctx.strokeText(header, x, baseY);
     ctx.restore();
   }
 
@@ -346,10 +353,10 @@
     ctx.setTransform(1,0,0,1,0,0);
     ctx.clearRect(0,0,ghost.width,ghost.height);
 
-    // 1) Cabecera fija en la 1ª vía
+    // 1) Cabecera fija automática en la 1ª vía
     drawHeaderLine(ctx);
 
-    // 2) Texto de práctica (en la vía seleccionada, p. ej. 2ª)
+    // 2) Texto de práctica (en la vía seleccionada)
     const txt=currentGuideText(); if(!txt) return;
 
     const fontPx=parseInt(ghostSize.value,10)*DPR;
@@ -454,7 +461,7 @@
   });
   toolSel.addEventListener('change', setComposite);
 
-  // ====== Exportar (incluye cabecera fija, guía y trazos; NO la anilla) ======
+  // ====== Exportar (incluye cabecera fija automática) ======
   function composeToCanvas(){
     const off=document.createElement('canvas'); off.width=A4.w; off.height=A4.h;
     const o=off.getContext('2d');
@@ -481,10 +488,11 @@
       }
     }
 
-    // Cabecera fija en 1ª vía
+    // Cabecera fija automática (1ª vía)
     (function drawHeaderToExport(ctx){
       const step=mm2px(parseFloat(stepSel.value));
       const baseY = 20*DPR + 2*step; // 1ª vía
+      const header = getHeaderText();
       const fontPx=Math.max(48*DPR, parseInt(ghostSize.value,10)*0.55*DPR);
       ctx.save();
       ctx.font = `normal ${fontPx}px "EscolarG", system-ui, sans-serif`;
@@ -493,8 +501,8 @@
       ctx.strokeStyle='rgba(107,114,128,.55)';
       ctx.lineWidth=Math.max(1,Math.round(fontPx*0.06));
       let x = Math.max(8*DPR, mm2px(parseFloat(margenSel.value)||0) + 8*DPR);
-      ctx.fillText(HEADER_TEXT, x, baseY);
-      ctx.strokeText(HEADER_TEXT, x, baseY);
+      ctx.fillText(header, x, baseY);
+      ctx.strokeText(header, x, baseY);
       ctx.restore();
     })(o);
 
@@ -549,6 +557,21 @@
     return off;
   }
 
+  function redrawAll(){ drawPauta(); drawGuide(); redrawDrawLayer(); drawSpiralCanvas(); }
+
+  // ====== Eventos ======
+  [stepSel,margenSel,colorSel,showPauta].forEach(el=>el.addEventListener('change', redrawAll));
+  document.getElementById('redraw').onclick=redrawAll;
+
+  ghostSelect.addEventListener('change',()=>{
+    const v=ghostSelect.value;
+    ghostText.style.display=(v==='__custom__')?'inline-block':'none';
+    if(v==='__none__'){ ghostShow.checked=false; } else { ghostShow.checked=true; }
+    redrawAll();
+  });
+  [ghostText,ghostSize,ghostShow,inlineWord,viaIndex].forEach(el=>el.addEventListener('input', redrawAll));
+
+  const savePngBtn=document.getElementById('savePng');
   savePngBtn.onclick=()=>{
     const off=composeToCanvas();
     const a=document.createElement('a');
@@ -557,6 +580,7 @@
     a.click();
   };
 
+  const printPdfBtn=document.getElementById('printPdf');
   printPdfBtn.onclick=()=>{
     const off=composeToCanvas();
     const url=off.toDataURL('image/png');
@@ -582,24 +606,26 @@
     w.document.close();
   };
 
-  // ====== Redibujado global ======
-  function redrawAll(){ drawPauta(); drawGuide(); redrawDrawLayer(); drawSpiralCanvas(); }
+  const undoBtn=document.getElementById('undo');
+  const redoBtn=document.getElementById('redo');
+  const clearBtn=document.getElementById('clear');
 
-  // ====== Eventos ======
-  [stepSel,margenSel,colorSel,showPauta].forEach(el=>el.addEventListener('change', redrawAll));
-  redrawBtn.onclick=redrawAll;
+  function undo(){ if(!history.length) return; redoStack.push(history.pop()); redrawDrawLayer(); }
+  function redo(){ if(!redoStack.length) return; history.push(redoStack.pop()); redrawDrawLayer(); }
+  function clearDraw(){ history.length=0; redoStack.length=0; redrawDrawLayer(); }
 
-  ghostSelect.addEventListener('change',()=>{
-    const v=ghostSelect.value;
-    ghostText.style.display=(v==='__custom__')?'inline-block':'none';
-    if(v==='__none__'){ ghostShow.checked=false; } else { ghostShow.checked=true; }
-    redrawAll();
-  });
-  [ghostText,ghostSize,ghostShow,inlineWord,viaIndex].forEach(el=>el.addEventListener('input', redrawAll));
+  undoBtn.onclick=undo;
+  redoBtn.onclick=redo;
+  clearBtn.onclick=clearDraw;
 
-  clearBtn.onclick = ()=>{ clearDraw(); };
-  undoBtn.onclick  = ()=>undo();
-  redoBtn.onclick  = ()=>redo();
+  const dctx=draw.getContext('2d'); dctx.lineCap='round'; dctx.lineJoin='round';
+  let drawing=false, points=[]; const history=[]; let redoStack=[];
+  function setComposite(){ dctx.globalCompositeOperation=(toolSel.value==='eraser')?'destination-out':'source-over'; }
+  draw.addEventListener('pointerdown',e=>{ e.preventDefault(); drawing=true; redoStack.length=0; points=[{x:(e.clientX-draw.getBoundingClientRect().left)*DPR,y:(e.clientY-draw.getBoundingClientRect().top)*DPR}]; dctx.save(); setComposite(); dctx.lineWidth=parseFloat(penSize.value)*DPR; dctx.strokeStyle='#111'; dctx.beginPath(); dctx.arc(points[0].x,points[0].y,dctx.lineWidth/2,0,Math.PI*2); dctx.fill(); });
+  draw.addEventListener('pointermove',e=>{ if(!drawing) return; const r=draw.getBoundingClientRect(); const p={x:(e.clientX-r.left)*DPR,y:(e.clientY-r.top)*DPR}; const prev=points[points.length-1]; points.push(p); dctx.beginPath(); const mx=(prev.x+p.x)/2,my=(prev.y+p.y)/2; dctx.quadraticCurveTo(prev.x,prev.y,mx,my); dctx.stroke(); });
+  draw.addEventListener('pointerup',()=>{ if(!drawing) return; drawing=false; history.push([{mode:dctx.globalCompositeOperation,size:dctx.lineWidth,color:'#111',path:points.slice()}]); dctx.restore(); });
+
+  toolSel.addEventListener('change', setComposite);
 
   // ====== Init ======
   // (HTML ya viene con 4mm y "suave" seleccionados)
