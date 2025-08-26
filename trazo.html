@@ -385,28 +385,28 @@
 
   // Ajusta tamaño de fuente para que quepan ascenso/descenso y ancho en su caja, con baseline fija
   function fitFontForBox(ctx, ch, cellsAbove, cellsBelow, cell, padTop, padBottom, padX){
-    // tamaño base
-    let px = Math.max(10*DPR, cell);
+    // Medimos una vez a tamaño base estable para obtener proporciones lineales
+    let px = Math.max(20*DPR, cell);
     ctx.font = `normal ${px}px "EscolarG", system-ui, sans-serif`;
     let m = ctx.measureText(ch);
     let asc = m.actualBoundingBoxAscent || px*0.8;
     let des = m.actualBoundingBoxDescent|| px*0.2;
     let wid = m.width;
 
-    // límites disponibles
+    // límites disponibles en píxeles
     const maxAsc = cellsAbove*cell - padTop;     // arriba de la base
     const maxDes = cellsBelow*cell - padBottom;  // debajo de la base
     const maxWid = cell - 2*padX;                // ancho de la celda
 
-    // factores: si no hay celdas arriba/abajo, no limitamos por ese lado
-    let fAsc = (cellsAbove>0 && asc>0) ? (maxAsc/asc) : 1;
-    let fDes = (cellsBelow>0 && des>0) ? (maxDes/des) : 1;
-    let fWid = (wid>0) ? (maxWid/wid) : 1;
+    // factores permitidos (SIN capar a 1 para permitir escalar hacia arriba)
+    let fAsc = (cellsAbove>0 && asc>0) ? (maxAsc/asc) : Infinity;
+    let fDes = (cellsBelow>0 && des>0) ? (maxDes/des) : Infinity;
+    let fWid = (wid>0) ? (maxWid/wid) : Infinity;
 
-    const factor = Math.min(fAsc, fDes, fWid, 1);
-    px = px * factor;
+    const factor = Math.min(fAsc, fDes, fWid);
+    px = px * (isFinite(factor) ? factor : 1);
 
-    return px;
+    return Math.max(4*DPR, px); // mínimo defensivo
   }
 
   function strokeBox(ctx, x, baseY, cell, cellsAbove, cellsBelow){
@@ -495,15 +495,15 @@
 
     // === Modo encaje por cuadritos (alineado a cuadrícula y línea base) ===
     const cell = step;
-    const padX = Math.max(0.06*cell, 1); // margen horizontal interno
-    const padTop = Math.max(0.06*cell, 1);
-    const padBottom = 0; // baseline EXACTA sobre la línea roja
+    const padX = Math.max(0.04*cell, 0.5); // margen horizontal mínimo
+    const padTop = Math.max(0.02*cell, 0); // muy pequeño para que "toque"
+    const padBottom = 0;                   // baseline exacta
 
     ctx.fillStyle='rgba(17,24,39,.28)';
     ctx.strokeStyle='rgba(107,114,128,.6)';
     ctx.textBaseline='alphabetic';
 
-    // ⬅️ Comenzamos EXACTAMENTE en la línea de margen (sin +8)
+    // ⬅️ Comenzamos EXACTAMENTE en la línea de margen
     let x = Math.max(0, marginPx);
 
     for(const raw of txt){
@@ -519,20 +519,19 @@
       // Caja arriba/abajo según el tipo de carácter
       const [cellsAbove, cellsBelow] = cellsAboveBelow(ch);
 
-      // Ajuste de tamaño con baseline fija en baseY
+      // Ajuste de tamaño con baseline fija en baseY (permitiendo escalar hacia arriba)
       let px = fitFontForBox(ctx, ch, cellsAbove, cellsBelow, cell, padTop, padBottom, padX);
       ctx.font = `normal ${px}px "EscolarG", system-ui, sans-serif`;
       ctx.lineWidth=Math.max(1,Math.round(px*0.06));
 
       const m = ctx.measureText(ch);
-      const textWidth = m.width;
 
       // Caja opcional
       if(showLetterBoxes.checked) strokeBox(ctx, x, baseY, cell, cellsAbove, cellsBelow);
 
       // Dibujar centrado horizontalmente en su celda, baseline EXACTA en baseY
-      const textX = x + (cell - textWidth)/2;
-      const textY = baseY; // baseline en la roja
+      const textX = x + (cell - m.width)/2;
+      const textY = baseY;
       ctx.fillText(ch, textX, textY);
       ctx.strokeText(ch, textX, textY);
 
@@ -679,7 +678,7 @@
     // guía de práctica
     const txt=currentGuideText();
     if(txt){
-      const cell = step, padX = Math.max(0.06*cell,1), padTop=Math.max(0.06*cell,1), padBottom=0;
+      const cell = step, padX = Math.max(0.04*cell,0.5), padTop=Math.max(0.02*cell,0), padBottom=0;
       const period=step*4.6;
       const baseY = top + 2*step + (parseInt(viaIndex.value||'2',10)-1)*period;
       let x = Math.max(0, marginPx);  // EXACTO en el margen
