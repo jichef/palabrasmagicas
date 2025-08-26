@@ -377,6 +377,13 @@
   }
   function marginXpx(){ return parseFloat(pauta.dataset.margin || mm2px(parseFloat(margenSel.value)||0)); }
 
+  // ⬇️ Helpers para empezar a medio cuadrito desde el margen
+  function stepPx(){ return parseFloat(pauta.dataset.step || mm2px(parseFloat(stepSel.value))); }
+  function startTextX(){
+    const m = marginXpx();
+    return (m > 0 ? m : 0) + stepPx()/2;
+  }
+
   function drawHeaderLine(ctx){
     const header=getHeaderText();
     const fontPx=Math.max(48*DPR, parseInt(ghostSize.value,10)*0.55*DPR);
@@ -387,7 +394,7 @@
     ctx.strokeStyle='rgba(107,114,128,.55)';
     ctx.lineWidth=Math.max(1,Math.round(fontPx*0.06));
     const baseY = firstBaseLineY();
-    let x = Math.max(8*DPR, marginXpx() + 8*DPR);
+    let x = startTextX();                // ⬅️ medio cuadrito desde el margen
     ctx.fillText(header, x, baseY);
     ctx.strokeText(header, x, baseY);
     ctx.restore();
@@ -412,9 +419,9 @@
     ctx.lineWidth=Math.max(1,Math.round(fontPx*0.06));
 
     const baseY=baseLineForGuide();
-    let x = Math.max(8*DPR, marginXpx() + 8*DPR);
 
     if(inlineWord.checked){
+      let x = startTextX();              // ⬅️ medio cuadrito desde el margen
       for(const ch of txt){
         ctx.fillText(ch, x, baseY);
         ctx.strokeText(ch, x, baseY);
@@ -545,7 +552,7 @@
       }
     }
 
-    // cabecera (1ª vía)
+    // cabecera (1ª vía) — ⬅️ medio cuadrito desde el margen
     (function drawHeaderToExport(ctx){
       const baseY = top + 2*step;
       const header = getHeaderText();
@@ -556,13 +563,13 @@
       ctx.fillStyle='rgba(17,24,39,.40)';
       ctx.strokeStyle='rgba(107,114,128,.55)';
       ctx.lineWidth=Math.max(1,Math.round(fontPx*0.06));
-      let x = Math.max(8*DPR, marginPx + 8*DPR);
+      let x = (marginPx > 0 ? marginPx : 0) + step/2;
       ctx.fillText(header, x, baseY);
       ctx.strokeText(header, x, baseY);
       ctx.restore();
     })(o);
 
-    // guía de práctica
+    // guía de práctica — ⬅️ medio cuadrito desde el margen (si va en línea)
     const fontPx=parseInt(ghostSize.value,10)*DPR;
     const txt=currentGuideText();
     if(txt){
@@ -573,8 +580,8 @@
       o.lineWidth=Math.max(1,Math.round(fontPx*0.06));
       const period=step*4.6;
       const baseY = top + 2*step + (parseInt(viaIndex.value||'2',10)-1)*period;
-      let x = Math.max(8*DPR, marginPx + 8*DPR);
       if(inlineWord.checked){
+        let x = (marginPx > 0 ? marginPx : 0) + step/2;
         for(const ch of txt){
           o.fillText(ch, x, baseY);
           o.strokeText(ch, x, baseY);
@@ -665,9 +672,9 @@
     viewScale = newScale;
     applyView();
   }
-  document.getElementById('zoomIn').onclick = ()=> zoomBy(1.15, window.innerWidth/2, 200);
-  document.getElementById('zoomOut').onclick= ()=> zoomBy(1/1.15, window.innerWidth/2, 200);
-  document.getElementById('zoomReset').onclick=()=>{ viewScale=1; viewX=0; viewY=0; applyView(); };
+  zoomInBtn.onclick = ()=> zoomBy(1.15, window.innerWidth/2, 200);
+  zoomOutBtn.onclick= ()=> zoomBy(1/1.15, window.innerWidth/2, 200);
+  zoomResetBtn.onclick=()=>{ viewScale=1; viewX=0; viewY=0; applyView(); };
 
   // Pan con arrastre
   let panning=false, panStart={x:0,y:0}, viewStart={x:0,y:0};
