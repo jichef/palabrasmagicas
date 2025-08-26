@@ -136,7 +136,7 @@
     </select>
     <input id="ghostText" type="text" placeholder="Escribe aquí…" style="display:none;width:12rem" />
     <label>Tamaño:</label>
-    <input id="ghostSize" type="range" min="40" max="300" value="40" />
+    <input id="ghostSize" type="range" min="40" max="300" value="80" />
     <label>Vía:</label>
     <select id="viaIndex">
       <option value="1">1ª</option>
@@ -377,11 +377,11 @@
   }
   function marginXpx(){ return parseFloat(pauta.dataset.margin || mm2px(parseFloat(margenSel.value)||0)); }
 
-  // ⬇️ Helpers para empezar a medio cuadrito desde el margen
+  // Helpers de alineación horizontal (dejar 1 cuadro libre)
   function stepPx(){ return parseFloat(pauta.dataset.step || mm2px(parseFloat(stepSel.value))); }
   function startTextX(){
     const m = marginXpx();
-    return (m > 0 ? m : 0) + stepPx()/2;
+    return (m > 0 ? m : 0) + stepPx(); // ⬅️ un cuadro entero desde el margen
   }
 
   function drawHeaderLine(ctx){
@@ -394,7 +394,7 @@
     ctx.strokeStyle='rgba(107,114,128,.55)';
     ctx.lineWidth=Math.max(1,Math.round(fontPx*0.06));
     const baseY = firstBaseLineY();
-    let x = startTextX();                // ⬅️ medio cuadrito desde el margen
+    let x = startTextX();                // ⬅️ deja el primer cuadro libre
     ctx.fillText(header, x, baseY);
     ctx.strokeText(header, x, baseY);
     ctx.restore();
@@ -421,7 +421,7 @@
     const baseY=baseLineForGuide();
 
     if(inlineWord.checked){
-      let x = startTextX();              // ⬅️ medio cuadrito desde el margen
+      let x = startTextX();              // ⬅️ deja el primer cuadro libre
       for(const ch of txt){
         ctx.fillText(ch, x, baseY);
         ctx.strokeText(ch, x, baseY);
@@ -552,7 +552,7 @@
       }
     }
 
-    // cabecera (1ª vía) — ⬅️ medio cuadrito desde el margen
+    // cabecera (1ª vía) — ⬅️ un cuadro desde el margen
     (function drawHeaderToExport(ctx){
       const baseY = top + 2*step;
       const header = getHeaderText();
@@ -563,13 +563,13 @@
       ctx.fillStyle='rgba(17,24,39,.40)';
       ctx.strokeStyle='rgba(107,114,128,.55)';
       ctx.lineWidth=Math.max(1,Math.round(fontPx*0.06));
-      let x = (marginPx > 0 ? marginPx : 0) + step/2;
+      let x = (marginPx > 0 ? marginPx : 0) + step; // ⬅️ cuadro entero
       ctx.fillText(header, x, baseY);
       ctx.strokeText(header, x, baseY);
       ctx.restore();
     })(o);
 
-    // guía de práctica — ⬅️ medio cuadrito desde el margen (si va en línea)
+    // guía de práctica — ⬅️ un cuadro desde el margen (si va en línea)
     const fontPx=parseInt(ghostSize.value,10)*DPR;
     const txt=currentGuideText();
     if(txt){
@@ -581,7 +581,7 @@
       const period=step*4.6;
       const baseY = top + 2*step + (parseInt(viaIndex.value||'2',10)-1)*period;
       if(inlineWord.checked){
-        let x = (marginPx > 0 ? marginPx : 0) + step/2;
+        let x = (marginPx > 0 ? marginPx : 0) + step; // ⬅️ cuadro entero
         for(const ch of txt){
           o.fillText(ch, x, baseY);
           o.strokeText(ch, x, baseY);
