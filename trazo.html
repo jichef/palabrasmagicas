@@ -47,6 +47,8 @@
     border-radius:12px;
     background:#fff;
     box-shadow:0 4px 16px rgba(0,0,0,.10);
+    transform-origin: top left; /* para zoom/pan */
+    touch-action: none; /* mejor control del pan */
   }
 
   canvas{position:absolute; top:0; left:0; touch-action:none}
@@ -99,6 +101,7 @@
       <option value="alto">Alto contraste</option>
     </select>
     <label><input type="checkbox" id="showPauta" checked/> Mostrar pauta</label>
+    <label><input type="checkbox" id="showGrid" checked/> Cuadrícula</label>
     <button id="redraw">🔄 Redibujar</button>
   </div>
 
@@ -129,7 +132,7 @@
     </select>
     <input id="ghostText" type="text" placeholder="Escribe aquí…" style="display:none;width:12rem" />
     <label>Tamaño:</label>
-    <input id="ghostSize" type="range" min="40" max="300" value="40" />
+    <input id="ghostSize" type="range" min="40" max="300" value="80" />
     <label>Vía:</label>
     <select id="viaIndex">
       <option value="1">1ª</option>
@@ -150,6 +153,14 @@
       <option value="left" selected>Izquierda</option>
       <option value="right">Derecha</option>
     </select>
+  </div>
+
+  <!-- Vista (Zoom/Pan) -->
+  <div class="group">
+    <button id="zoomIn" title="Acercar">＋</button>
+    <button id="zoomOut" title="Alejar">－</button>
+    <button id="zoomReset" title="Restablecer vista">⟲</button>
+    <label><input type="checkbox" id="panMode" /> 👋 Pan</label>
   </div>
 </header>
 
@@ -192,6 +203,7 @@
   const margenSel=document.getElementById('margenSel');
   const colorSel=document.getElementById('colorPauta');
   const showPauta=document.getElementById('showPauta');
+  const showGrid=document.getElementById('showGrid');
   const redrawBtn=document.getElementById('redraw');
   const ghostSelect=document.getElementById('ghostSelect');
   const ghostText=document.getElementById('ghostText');
@@ -208,6 +220,12 @@
   const clearBtn=document.getElementById('clear');
   const savePngBtn=document.getElementById('savePng');
   const printPdfBtn=document.getElementById('printPdf');
+
+  // Vista
+  const zoomInBtn=document.getElementById('zoomIn');
+  const zoomOutBtn=document.getElementById('zoomOut');
+  const zoomResetBtn=document.getElementById('zoomReset');
+  const panMode=document.getElementById('panMode');
 
   // ==== Paletas ====
   function palette(mode){
@@ -232,8 +250,23 @@
     spiral.style.left=(spiralSide.value==='left')?px2css(-SPIRAL_W):px2css(A4.w);
   }
 
-  // ==== Pauta Lamela ====
+  // ==== Pauta Lamela + Cuadrícula vertical ====
   function strokeH(ctx,y,w,c){ ctx.beginPath(); ctx.moveTo(0,y); ctx.lineTo(A4.w,y); ctx.lineWidth=w; ctx.strokeStyle=c; ctx.stroke(); }
+  function strokeV(ctx,x,w,c){ ctx.beginPath(); ctx.moveTo(x,0); ctx.lineTo(x,A4.h); ctx.lineWidth=w; ctx.strokeStyle=c; ctx.stroke(); }
+
+  function drawGridVertical(ctx, step, marginPx, secColor){
+    if(!showGrid.checked) return;
+    ctx.save();
+    ctx.globalAlpha = 0.15; // tenue
+    ctx.lineWidth = Math.max(0.75*DPR, 0.5*DPR);
+    // ⬇️ Ahora empieza EXACTAMENTE en el margen
+    let x = Math.max(0, marginPx);
+    while(x < A4.w - 1){
+      strokeV(ctx, x, ctx.lineWidth, secColor);
+      x += step;
+    }
+    ctx.restore();
+  }
 
   function drawPauta(){
     const ctx=pauta.getContext('2d');
@@ -255,8 +288,12 @@
     pauta.dataset.period=String(period);
     pauta.dataset.margin=String(marginPx);
 
+    // cuadrícula vertical primero (debajo de las horizontales)
+    drawGridVertical(ctx, step, marginPx, sec);
+
     if(!showPauta.checked) return;
 
+    // patrón Lamela
     let y=top;
     while(y<pauta.height-top){
       strokeH(ctx,y,1*DPR,sec); y+=step;        // ascendente
@@ -265,6 +302,7 @@
       strokeH(ctx,y,1*DPR,sec); y+=step*1.6;    // descendente + espacio
     }
 
+    // margen
     if(marginPx>0){
       ctx.beginPath(); ctx.moveTo(marginPx,0); ctx.lineTo(marginPx,pauta.height);
       ctx.lineWidth=2*DPR; ctx.strokeStyle=margin; ctx.stroke();
@@ -315,9 +353,9 @@
   }
   function baseLineForGuide(){
     const step   = parseFloat(pauta.dataset.step   || mm2px(parseFloat(stepSel.value)));
-    const period = parseFloat(pauta.dataset.period || step*4.6);
+    thePeriod = parseFloat(pauta.dataset.period || step*4.6);
     const idx    = parseInt(viaIndex.value || '2', 10); // por defecto 2ª
-    return firstBaseLineY() + (idx - 1) * period;
+    return firstBaseLineY() + (idx - 1) * thePeriod;
   }
   function marginXpx(){ return parseFloat(pauta.dataset.margin || mm2px(parseFloat(margenSel.value)||0)); }
 
@@ -383,6 +421,7 @@
     return {x:(e.clientX-r.left)*DPR, y:(e.clientY-r.top)*DPR};
   }
   function startDraw(e){
+    if (panMode.checked) return; // no dibujar en modo pan
     e.preventDefault(); drawing=true; redoStack.length=0;
     points=[pointerPos(e)];
     dctx.save(); setComposite();
@@ -392,7 +431,7 @@
     dctx.beginPath(); dctx.arc(points[0].x,points[0].y,dctx.lineWidth/2,0,Math.PI*2); dctx.fill();
   }
   function moveDraw(e){
-    if(!drawing) return;
+    if(!drawing || panMode.checked) return;
     const p = pointerPos(e);
     const prev = points[points.length-1];
     points.push(p);
@@ -450,7 +489,7 @@
   });
   toolSel.addEventListener('change', setComposite);
 
-  // ==== Exportar (incluye cabecera; NO anilla) ====
+  // ==== Exportar (incluye cuadrícula si está activada; NO anilla) ====
   function composeToCanvas(){
     const off=document.createElement('canvas'); off.width=A4.w; off.height=A4.h;
     const o=off.getContext('2d');
@@ -458,12 +497,23 @@
     // fondo
     o.fillStyle='#fff'; o.fillRect(0,0,off.width,off.height);
 
-    // pauta
+    // pauta + cuadrícula
+    const step  = mm2px(parseFloat(stepSel.value));
+    const top   = 20*DPR;
+    const {base, sec, margin} = palette(colorSel.value);
+    const marginPx = mm2px(parseFloat(margenSel.value)||0);
+
+    // cuadrícula vertical primero (tenue) — empieza en el margen
+    if(showGrid.checked){
+      o.save();
+      o.globalAlpha=0.15;
+      o.lineWidth=Math.max(0.75*DPR,0.5*DPR);
+      let x=Math.max(0,marginPx); // ⬅️ desde la línea de margen
+      while(x<A4.w-1){ strokeV(o,x,o.lineWidth,sec); x+=step; }
+      o.restore();
+    }
+
     if(showPauta.checked){
-      const step  = mm2px(parseFloat(stepSel.value));
-      const top   = 20*DPR;
-      const {base, sec, margin} = palette(colorSel.value);
-      const marginPx = mm2px(parseFloat(margenSel.value)||0);
       let y=top;
       while(y<A4.h-top){
         strokeH(o,y,1*DPR,sec); y+=step;
@@ -479,8 +529,7 @@
 
     // cabecera (1ª vía)
     (function drawHeaderToExport(ctx){
-      const step=mm2px(parseFloat(stepSel.value));
-      const baseY = 20*DPR + 2*step;
+      const baseY = top + 2*step;
       const header = getHeaderText();
       const fontPx=Math.max(48*DPR, parseInt(ghostSize.value,10)*0.55*DPR);
       ctx.save();
@@ -489,7 +538,7 @@
       ctx.fillStyle='rgba(17,24,39,.40)';
       ctx.strokeStyle='rgba(107,114,128,.55)';
       ctx.lineWidth=Math.max(1,Math.round(fontPx*0.06));
-      let x = Math.max(8*DPR, mm2px(parseFloat(margenSel.value)||0) + 8*DPR);
+      let x = Math.max(8*DPR, marginPx + 8*DPR);
       ctx.fillText(header, x, baseY);
       ctx.strokeText(header, x, baseY);
       ctx.restore();
@@ -504,9 +553,9 @@
       o.fillStyle='rgba(17,24,39,.28)';
       o.strokeStyle='rgba(107,114,128,.6)';
       o.lineWidth=Math.max(1,Math.round(fontPx*0.06));
-      const step=mm2px(parseFloat(stepSel.value)), period=step*4.6;
-      const baseY = 20*DPR + 2*step + (parseInt(viaIndex.value||'2',10)-1)*period;
-      let x = Math.max(8*DPR, mm2px(parseFloat(margenSel.value)||0) + 8*DPR);
+      const period=step*4.6;
+      const baseY = top + 2*step + (parseInt(viaIndex.value||'2',10)-1)*period;
+      let x = Math.max(8*DPR, marginPx + 8*DPR);
       if(inlineWord.checked){
         for(const ch of txt){
           o.fillText(ch, x, baseY);
@@ -579,11 +628,56 @@
     w.document.close();
   };
 
+  // ==== Vista: Zoom & Pan (sólo visual; export no se afecta) ====
+  let viewScale=1, viewX=0, viewY=0;
+  function applyView(){
+    paper.style.transform = `translate(${viewX}px, ${viewY}px) scale(${viewScale})`;
+  }
+  function zoomBy(factor, centerX=null, centerY=null){
+    // Zoom hacia un punto (si se pasa); si no, hacia la esquina sup. izq.
+    const prevScale = viewScale;
+    const newScale = Math.min(4, Math.max(0.3, viewScale * factor));
+    if (newScale === prevScale) return;
+    if (centerX!==null && centerY!==null){
+      // mantener el punto de zoom en pantalla
+      viewX = centerX - (centerX - viewX) * (newScale/prevScale);
+      viewY = centerY - (centerY - viewY) * (newScale/prevScale);
+    }
+    viewScale = newScale;
+    applyView();
+  }
+  zoomInBtn.onclick = ()=> zoomBy(1.15, window.innerWidth/2, 200);
+  zoomOutBtn.onclick= ()=> zoomBy(1/1.15, window.innerWidth/2, 200);
+  zoomResetBtn.onclick=()=>{ viewScale=1; viewX=0; viewY=0; applyView(); };
+
+  // Pan con arrastre
+  let panning=false, panStart={x:0,y:0}, viewStart={x:0,y:0};
+  paper.addEventListener('pointerdown', e=>{
+    if(!panMode.checked) return;
+    panning=true;
+    panStart={x:e.clientX, y:e.clientY};
+    viewStart={x:viewX, y:viewY};
+    paper.setPointerCapture(e.pointerId);
+    e.preventDefault();
+  });
+  paper.addEventListener('pointermove', e=>{
+    if(!panning) return;
+    const dx=e.clientX-panStart.x;
+    const dy=e.clientY-panStart.y;
+    viewX=viewStart.x+dx;
+    viewY=viewStart.y+dy;
+    applyView();
+  });
+  const endPan= e=>{ if(!panning) return; panning=false; try{paper.releasePointerCapture(e.pointerId);}catch{} };
+  paper.addEventListener('pointerup', endPan);
+  paper.addEventListener('pointercancel', endPan);
+  paper.addEventListener('pointerleave', endPan);
+
   // ==== Redibujado global ====
   function redrawAll(){ drawPauta(); drawGuide(); redrawDrawLayer(); drawSpiralCanvas(); }
 
   // ==== Eventos ====
-  [stepSel,margenSel,colorSel,showPauta].forEach(el=>el.addEventListener('change', redrawAll));
+  [stepSel,margenSel,colorSel,showPauta,showGrid].forEach(el=>el.addEventListener('change', redrawAll));
   redrawBtn.onclick=redrawAll;
 
   ghostSelect.addEventListener('change',()=>{
@@ -598,22 +692,26 @@
   undoBtn.onclick  = undo;
   redoBtn.onclick  = redo;
 
-  // ==== Init ====
-  // (HTML ya viene con 4mm y "suave" seleccionados)
-  resizeA4();
-  // esperar fuente y dibujar
-  if (document.fonts && document.fonts.ready) {
-    document.fonts.ready.then(()=>{ redrawAll(); });
-  } else {
-    redrawAll();
-  }
-  // recolocar al cambiar anilla / tamaño
   [showSpiral, spiralSide].forEach(el=>{
     el.addEventListener('change', ()=>{
-      spiral.style.left = (spiralSide.value==='left') ? px2css(-SPIRAL_W) : px2css(A4.w);
+      spiral.style.left = (spiralSide.value==='left') ? px2css(SPIRAL_W*-1) : px2css(A4.w);
       drawSpiralCanvas();
     });
   });
+
+  // Rueda con Ctrl -> zoom (opcional)
+  document.addEventListener('wheel', e=>{
+    if(!e.ctrlKey) return;
+    e.preventDefault();
+    const factor = e.deltaY>0 ? 1/1.08 : 1.08;
+    zoomBy(factor, e.clientX, e.clientY);
+  }, {passive:false});
+
+  // ==== Init ====
+  resizeA4();
+  if (document.fonts && document.fonts.ready) { document.fonts.ready.then(()=>{ redrawAll(); }); }
+  else { redrawAll(); }
+  applyView();
   window.addEventListener('resize', ()=>{ resizeA4(); redrawAll(); }, {passive:true});
 
 })();
