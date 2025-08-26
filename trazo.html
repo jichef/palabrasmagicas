@@ -367,37 +367,54 @@
   const oneCellSet = new Set('a c e i m n o r s u v w x z á é í ó ú ä ë ï ö ü ç º ª'.split(/\s+/));
   const ascenderSet = new Set('b d f h k l t'.split(' '));
   const descenderSet = new Set('g j p q y'.split(' '));
+
   function isDigit(ch){ return /\d/.test(ch); }
   function isUpper(ch){ return ch.toUpperCase()===ch && ch.toLowerCase()!==ch; }
-  function cellsHighForChar(ch){
-    if(ch===' ') return 1;              // el espacio avanza 1 celda
-    if(isDigit(ch)) return 2;
-    if(isUpper(ch)) return 2;
+
+  // devuelve [cellsAbove, cellsBelow] respecto a la línea base
+  function cellsAboveBelow(ch){
+    if(ch===' ') return [0,0];          // espacio: sin caja, sólo avance
+    if(isDigit(ch) || isUpper(ch)) return [2,0];     // mayúsculas y números: 2 arriba
     const low = ch.toLowerCase();
-    if(oneCellSet.has(low)) return 1;
-    if(ascenderSet.has(low) || descenderSet.has(low) || low==='ñ') return 2;
-    return 1;
+    if(ascenderSet.has(low))  return [2,0];          // ascendentes
+    if(descenderSet.has(low)) return [1,1];          // 1 arriba + 1 abajo
+    if(low==='ñ')             return [2,0];          // con virgulilla -> alto
+    if(oneCellSet.has(low))   return [1,0];          // x-height
+    return [1,0];
   }
-  // calcula un tamaño de fuente que encaja dentro de (targetW x targetH)
-  function fontPxToFitChar(ctx, ch, targetW, targetH){
-    let px = Math.max(10*DPR, targetH);
+
+  // Ajusta tamaño de fuente para que quepan ascenso/descenso y ancho en su caja, con baseline fija
+  function fitFontForBox(ctx, ch, cellsAbove, cellsBelow, cell, padTop, padBottom, padX){
+    // probar con un tamaño base (cell) y escalar según métricas lineales
+    let px = Math.max(10*DPR, cell);
     ctx.font = `normal ${px}px "EscolarG", system-ui, sans-serif`;
     let m = ctx.measureText(ch);
-    let ascent = m.actualBoundingBoxAscent||px*0.8;
-    let descent= m.actualBoundingBoxDescent||px*0.2;
-    let h = ascent + descent;
-    if(h>0) px = px * (targetH / h);
-    ctx.font = `normal ${px}px "EscolarG", system-ui, sans-serif`;
-    m = ctx.measureText(ch);
-    if(m.width > targetW) px = px * (targetW / m.width);
+    let asc = m.actualBoundingBoxAscent || px*0.8;
+    let des = m.actualBoundingBoxDescent|| px*0.2;
+    let wid = m.width;
+
+    // límites disponibles
+    const maxAsc = cellsAbove*cell - padTop;
+    const maxDes = cellsBelow*cell - padBottom;
+    const maxWid = cell - 2*padX;
+
+    // factores por altura arriba/abajo y ancho
+    let fAsc = maxAsc>0 ? (maxAsc/asc) : 1;
+    let fDes = des>0 ? (maxDes/des) : 1;
+    let fWid = wid>0 ? (maxWid/wid) : 1;
+
+    const factor = Math.min(fAsc, fDes, fWid, 1);
+    px = px * factor;
+
     return px;
   }
-  function strokeBox(ctx, x, baseY, cellSize, cellsHigh){
-    const top = baseY - cellsHigh*cellSize;
+
+  function strokeBox(ctx, x, baseY, cell, cellsAbove, cellsBelow){
+    const top = baseY - cellsAbove*cell;
     ctx.save();
     ctx.strokeStyle = 'rgba(0,0,0,.18)';
     ctx.lineWidth = 1*DPR;
-    ctx.strokeRect(x, top, cellSize, cellsHigh*cellSize);
+    ctx.strokeRect(x, top, cell, (cellsAbove+cellsBelow)*cell);
     ctx.restore();
   }
 
@@ -476,51 +493,51 @@
       return;
     }
 
-    // === Modo encaje por cuadritos ===
-    const cellSize = step;
-    const letterPad = Math.max(1, 0.06*cellSize);
+    // === Modo encaje por cuadritos (alineado a cuadrícula y línea base) ===
+    const cell = step;
+    const padX = Math.max(0.06*cell, 1); // margen horizontal interno
+    const padTop = Math.max(0.06*cell, 1);
+    const padBottom = 0; // baseline EXACTA sobre la línea roja
+
     ctx.fillStyle='rgba(17,24,39,.28)';
     ctx.strokeStyle='rgba(107,114,128,.6)';
     ctx.textBaseline='alphabetic';
 
-    let x = Math.max(8*DPR, marginPx + 8*DPR);
+    // ⬅️ Comenzamos EXACTAMENTE en la línea de margen (sin +8)
+    let x = Math.max(0, marginPx);
 
     for(const raw of txt){
-      const ch = raw; // carácter original
-      const cellsHigh = cellsHighForChar(ch);
-      const targetW = cellSize - 2*letterPad;
-      const targetH = cellsHigh*cellSize - 2*letterPad;
+      const ch = raw;
 
-      if(ch===' '){ // espacio: avanza una celda
-        if(showLetterBoxes.checked) strokeBox(ctx, x, baseY, cellSize, 1);
-        x += cellSize;
-        continue;
+      // Espacio: avanza 1 celda
+      if(ch===' '){ 
+        if(showLetterBoxes.checked) strokeBox(ctx, x, baseY, cell, 1, 0); 
+        x += cell; 
+        continue; 
       }
 
-      // tamaño que cabe en la caja
-      let px = fontPxToFitChar(ctx, ch, targetW, targetH);
+      // Caja arriba/abajo según el tipo de carácter
+      const [cellsAbove, cellsBelow] = cellsAboveBelow(ch);
+
+      // Ajuste de tamaño con baseline fija en baseY
+      let px = fitFontForBox(ctx, ch, cellsAbove, cellsBelow, cell, padTop, padBottom, padX);
       ctx.font = `normal ${px}px "EscolarG", system-ui, sans-serif`;
       ctx.lineWidth=Math.max(1,Math.round(px*0.06));
 
-      const metrics = ctx.measureText(ch);
-      const ascent  = metrics.actualBoundingBoxAscent || px*0.8;
-      const descent = metrics.actualBoundingBoxDescent|| px*0.2;
+      const m = ctx.measureText(ch);
+      const textWidth = m.width;
 
-      const boxTop = baseY - cellsHigh*cellSize + letterPad;
-      const textY  = boxTop + ascent + (targetH - (ascent+descent))/2; // centrado vertical en caja
+      // Caja opcional
+      if(showLetterBoxes.checked) strokeBox(ctx, x, baseY, cell, cellsAbove, cellsBelow);
 
-      // caja opcional
-      if(showLetterBoxes.checked) strokeBox(ctx, x, baseY, cellSize, cellsHigh);
-
-      // dibujar carácter centrado horizontalmente en la celda
-      const textWidth = metrics.width;
-      const textX = x + (cellSize - textWidth)/2;
-
+      // Dibujar centrado horizontalmente en su celda, baseline EXACTA en baseY
+      const textX = x + (cell - textWidth)/2;
+      const textY = baseY; // baseline en la roja
       ctx.fillText(ch, textX, textY);
       ctx.strokeText(ch, textX, textY);
 
       // Avance: 1 celda de ancho
-      x += cellSize;
+      x += cell;
     }
   }
 
@@ -659,14 +676,13 @@
       ctx.restore();
     })(o);
 
-    // guía de práctica (normal vs encaje)
+    // guía de práctica
     const txt=currentGuideText();
     if(txt){
-      const cellSize = step;
-      const letterPad = Math.max(1, 0.06*cellSize);
+      const cell = step, padX = Math.max(0.06*cell,1), padTop=Math.max(0.06*cell,1), padBottom=0;
       const period=step*4.6;
       const baseY = top + 2*step + (parseInt(viaIndex.value||'2',10)-1)*period;
-      let x = Math.max(8*DPR, marginPx + 8*DPR);
+      let x = Math.max(0, marginPx);  // EXACTO en el margen
 
       if(!fitToCells.checked){
         const fontPx=parseInt(ghostSize.value,10)*DPR;
@@ -692,32 +708,22 @@
         o.textBaseline='alphabetic';
         for(const raw of txt){
           const ch = raw;
-          const cellsHigh = cellsHighForChar(ch);
-          const targetW = cellSize - 2*letterPad;
-          const targetH = cellsHigh*cellSize - 2*letterPad;
-
           if(ch===' '){
-            if(showLetterBoxes.checked) strokeBox(o, x, baseY, cellSize, 1);
-            x += cellSize;
-            continue;
+            if(showLetterBoxes.checked) strokeBox(o, x, baseY, cell, 1, 0);
+            x += cell; continue;
           }
-
-          let px = fontPxToFitChar(o, ch, targetW, targetH);
+          const [cellsAbove, cellsBelow] = cellsAboveBelow(ch);
+          let px = fitFontForBox(o, ch, cellsAbove, cellsBelow, cell, padTop, padBottom, padX);
           o.font = `normal ${px}px "EscolarG", system-ui, sans-serif`;
           o.lineWidth=Math.max(1,Math.round(px*0.06));
 
           const m = o.measureText(ch);
-          const ascent = m.actualBoundingBoxAscent || px*0.8;
-          const descent= m.actualBoundingBoxDescent|| px*0.2;
-
-          const boxTop = baseY - cellsHigh*cellSize + letterPad;
-          const textY  = boxTop + ascent + (targetH - (ascent+descent))/2;
-          if(showLetterBoxes.checked) strokeBox(o, x, baseY, cellSize, cellsHigh);
-          const textX = x + (cellSize - m.width)/2;
-
+          const textX = x + (cell - m.width)/2;
+          const textY = baseY; // baseline exacta
+          if(showLetterBoxes.checked) strokeBox(o, x, baseY, cell, cellsAbove, cellsBelow);
           o.fillText(ch, textX, textY);
           o.strokeText(ch, textX, textY);
-          x += cellSize;
+          x += cell;
         }
       }
     }
