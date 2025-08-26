@@ -19,7 +19,7 @@
 
   :root{
     --ink:#111; --panel:#fff; --border:#d1d5db; --bg:#f3f4f6;
-    --sec:#3b82f6; --base:#ef4444; --margin:#10b981;
+    --sec:#93c5fd; --base:#f87171; --margin:#22c55e; /* paleta "suave" por defecto */
   }
   body{
     margin:0;background:var(--bg);
@@ -385,7 +385,7 @@
 
   // Ajusta tamaño de fuente para que quepan ascenso/descenso y ancho en su caja, con baseline fija
   function fitFontForBox(ctx, ch, cellsAbove, cellsBelow, cell, padTop, padBottom, padX){
-    // probar con un tamaño base (cell) y escalar según métricas lineales
+    // tamaño base
     let px = Math.max(10*DPR, cell);
     ctx.font = `normal ${px}px "EscolarG", system-ui, sans-serif`;
     let m = ctx.measureText(ch);
@@ -394,14 +394,14 @@
     let wid = m.width;
 
     // límites disponibles
-    const maxAsc = cellsAbove*cell - padTop;
-    const maxDes = cellsBelow*cell - padBottom;
-    const maxWid = cell - 2*padX;
+    const maxAsc = cellsAbove*cell - padTop;     // arriba de la base
+    const maxDes = cellsBelow*cell - padBottom;  // debajo de la base
+    const maxWid = cell - 2*padX;                // ancho de la celda
 
-    // factores por altura arriba/abajo y ancho
-    let fAsc = maxAsc>0 ? (maxAsc/asc) : 1;
-    let fDes = des>0 ? (maxDes/des) : 1;
-    let fWid = wid>0 ? (maxWid/wid) : 1;
+    // factores: si no hay celdas arriba/abajo, no limitamos por ese lado
+    let fAsc = (cellsAbove>0 && asc>0) ? (maxAsc/asc) : 1;
+    let fDes = (cellsBelow>0 && des>0) ? (maxDes/des) : 1;
+    let fWid = (wid>0) ? (maxWid/wid) : 1;
 
     const factor = Math.min(fAsc, fDes, fWid, 1);
     px = px * factor;
