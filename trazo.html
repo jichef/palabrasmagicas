@@ -42,7 +42,7 @@
     overflow:auto;padding:8px;
   }
   .paper{
-    position:relative; /* width/height CSS fijados por JS */
+    position:relative;
     border:1px solid var(--border);
     border-radius:12px;
     background:#fff;
@@ -50,7 +50,7 @@
   }
 
   canvas{position:absolute; top:0; left:0; touch-action:none}
-  #spiralCanvas{z-index:0; pointer-events:none; border-radius:0;}
+  #spiralCanvas{z-index:0; pointer-events:none;}
   #pautaCanvas{ z-index:1; pointer-events:none; border-radius:12px; }
   #drawCanvas { z-index:2; border-radius:12px; }
   #ghostCanvas{ z-index:3; pointer-events:none; border-radius:12px; }
@@ -84,7 +84,7 @@
     <select id="pautaStep">
       <option value="2.5">2.5 mm</option>
       <option value="3">3 mm</option>
-      <option value="4" selected>4 mm</option><!-- ⬅️ por defecto 4mm -->
+      <option value="4" selected>4 mm</option>
     </select>
     <label>Margen:</label>
     <select id="margenSel">
@@ -95,7 +95,7 @@
     <label>Color:</label>
     <select id="colorPauta">
       <option value="clasica">Clásica</option>
-      <option value="suave" selected>Suave</option><!-- ⬅️ por defecto Suave -->
+      <option value="suave" selected>Suave</option>
       <option value="alto">Alto contraste</option>
     </select>
     <label><input type="checkbox" id="showPauta" checked/> Mostrar pauta</label>
@@ -133,7 +133,7 @@
     <label>Vía:</label>
     <select id="viaIndex">
       <option value="1">1ª</option>
-      <option value="2" selected>2ª</option><!-- ⬅️ por defecto 2ª para no pisar cabecera -->
+      <option value="2" selected>2ª</option>
       <option value="3">3ª</option>
       <option value="4">4ª</option>
       <option value="5">5ª</option>
@@ -155,73 +155,61 @@
 
 <main>
   <div id="paper" class="paper">
-    <canvas id="spiralCanvas"></canvas><!-- anilla (fuera) -->
-    <canvas id="pautaCanvas"></canvas><!-- hoja A4 -->
-    <canvas id="drawCanvas"></canvas><!-- trazos -->
-    <canvas id="ghostCanvas"></canvas><!-- guía de letras + cabecera -->
+    <canvas id="spiralCanvas"></canvas>
+    <canvas id="pautaCanvas"></canvas>
+    <canvas id="drawCanvas"></canvas>
+    <canvas id="ghostCanvas"></canvas>
   </div>
 </main>
 
 <script>
 (()=>{
-  // ====== Utilidades ======
+  // ==== Utilidades ====
   const DPR = Math.max(1, window.devicePixelRatio||1);
   const mm2px = mm => mm*96/25.4*DPR;
   const px2css = px => (px/DPR)+'px';
   const A4 = { w:mm2px(210), h:mm2px(297) };
-  const SPIRAL_W = mm2px(10); // ancho del canvas de anilla
+  const SPIRAL_W = mm2px(10);
 
-  // Fecha automática (español)
   function formatTodayEs(){
-    const hoy = new Date();
-    // fuerza formato «22 de marzo de 2025»
-    return new Intl.DateTimeFormat('es-ES', {
-      day:'numeric', month:'long', year:'numeric'
-    }).format(hoy);
+    return new Intl.DateTimeFormat('es-ES',{day:'numeric',month:'long',year:'numeric'}).format(new Date());
   }
-  function getHeaderText(){ return `Granada  —  ${formatTodayEs()}`; }
+  function getHeaderText(){ return `Granada — ${formatTodayEs()}`; }
 
-  // ====== Elementos ======
-  const paper = document.getElementById('paper');
-  const pauta = document.getElementById('pautaCanvas');
-  const draw  = document.getElementById('drawCanvas');
-  const ghost = document.getElementById('ghostCanvas');
-  const spiral= document.getElementById('spiralCanvas');
+  const paper=document.getElementById('paper');
+  const pauta=document.getElementById('pautaCanvas');
+  const draw=document.getElementById('drawCanvas');
+  const ghost=document.getElementById('ghostCanvas');
+  const spiral=document.getElementById('spiralCanvas');
   const cvs=[pauta,draw,ghost];
 
-  // Controles
-  const stepSel    = document.getElementById('pautaStep');
-  const margenSel  = document.getElementById('margenSel');
-  const colorSel   = document.getElementById('colorPauta');
-  const showPauta  = document.getElementById('showPauta');
-  const redrawBtn  = document.getElementById('redraw');
+  const stepSel=document.getElementById('pautaStep');
+  const margenSel=document.getElementById('margenSel');
+  const colorSel=document.getElementById('colorPauta');
+  const showPauta=document.getElementById('showPauta');
+  const redrawBtn=document.getElementById('redraw');
+  const ghostSelect=document.getElementById('ghostSelect');
+  const ghostText=document.getElementById('ghostText');
+  const ghostSize=document.getElementById('ghostSize');
+  const ghostShow=document.getElementById('ghostShow');
+  const inlineWord=document.getElementById('inlineWord');
+  const viaIndex=document.getElementById('viaIndex');
+  const showSpiral=document.getElementById('showSpiral');
+  const spiralSide=document.getElementById('spiralSide');
+  const toolSel=document.getElementById('tool');
+  const penSize=document.getElementById('penSize');
+  const undoBtn=document.getElementById('undo');
+  const redoBtn=document.getElementById('redo');
+  const clearBtn=document.getElementById('clear');
+  const savePngBtn=document.getElementById('savePng');
+  const printPdfBtn=document.getElementById('printPdf');
 
-  const ghostSelect= document.getElementById('ghostSelect');
-  const ghostText  = document.getElementById('ghostText');
-  const ghostSize  = document.getElementById('ghostSize');
-  const ghostShow  = document.getElementById('ghostShow');
-  const inlineWord = document.getElementById('inlineWord');
-  const viaIndex   = document.getElementById('viaIndex');
-
-  const showSpiral = document.getElementById('showSpiral');
-  const spiralSide = document.getElementById('spiralSide');
-
-  const toolSel    = document.getElementById('tool');
-  const penSize    = document.getElementById('penSize');
-  const undoBtn    = document.getElementById('undo');
-  const redoBtn    = document.getElementById('redo');
-  const clearBtn   = document.getElementById('clear');
-  const savePngBtn = document.getElementById('savePng');
-  const printPdfBtn= document.getElementById('printPdf');
-
-  // ====== Paletas de colores de pauta ======
   function palette(mode){
     if(mode==='suave') return {base:'#f87171', sec:'#93c5fd', margin:'#22c55e'};
-    if(mode==='alto')  return {base:'#dc2626', sec:'#1d4ed8', margin:'#16a34a'};
-    return { base:'#ef4444', sec:'#3b82f6', margin:'#10b981' }; // clásica
+    if(mode==='alto') return {base:'#dc2626', sec:'#1d4ed8', margin:'#16a34a'};
+    return {base:'#ef4444', sec:'#3b82f6', margin:'#10b981'};
   }
 
-  // ====== Tamaños y colocación ======
   function resizeA4(){
     cvs.forEach(cv=>{
       cv.width=A4.w; cv.height=A4.h;
@@ -229,425 +217,97 @@
     });
     paper.style.width=px2css(A4.w);
     paper.style.height=px2css(A4.h);
-
-    // anilla: canvas estrecho fuera del A4, pegado al borde
     spiral.width=SPIRAL_W; spiral.height=A4.h;
     spiral.style.width=px2css(SPIRAL_W);
     spiral.style.height=px2css(A4.h);
-    spiral.style.left = (spiralSide.value==='left') ? px2css(-SPIRAL_W) : px2css(A4.w);
+    spiral.style.left=(spiralSide.value==='left')?px2css(-SPIRAL_W):px2css(A4.w);
   }
 
-  // ====== Pauta (milimetrado Lamela) ======
   function drawPauta(){
     const ctx=pauta.getContext('2d');
-    ctx.setTransform(1,0,0,1,0,0);
     ctx.clearRect(0,0,pauta.width,pauta.height);
-
-    // fondo blanco
     ctx.fillStyle='#fff'; ctx.fillRect(0,0,pauta.width,pauta.height);
-
-    const step = mm2px(parseFloat(stepSel.value));
-    const top  = 20*DPR;
-    const period = step*4.6;
-    const marginPx = mm2px(parseFloat(margenSel.value)||0);
-    const {base,sec,margin} = palette(colorSel.value);
-
-    // guarda para la guía
-    pauta.dataset.topPad = String(top);
-    pauta.dataset.step   = String(step);
-    pauta.dataset.period = String(period);
-    pauta.dataset.margin = String(marginPx);
-
+    const step=mm2px(parseFloat(stepSel.value));
+    const top=20*DPR;
+    const period=step*4.6;
+    const marginPx=mm2px(parseFloat(margenSel.value)||0);
+    const {base,sec,margin}=palette(colorSel.value);
+    pauta.dataset.topPad=top; pauta.dataset.step=step; pauta.dataset.period=period; pauta.dataset.margin=marginPx;
     if(!showPauta.checked) return;
-
     let y=top;
     while(y<pauta.height-top){
-      strokeH(ctx,y,1*DPR,sec); y+=step;        // ascendente
-      strokeH(ctx,y,1*DPR,sec); y+=step;        // techo
-      strokeH(ctx,y,1.5*DPR,base); y+=step;     // base (roja)
-      strokeH(ctx,y,1*DPR,sec); y+=step*1.6;    // descendente + espacio
+      strokeH(ctx,y,1*DPR,sec); y+=step;
+      strokeH(ctx,y,1*DPR,sec); y+=step;
+      strokeH(ctx,y,1.5*DPR,base); y+=step;
+      strokeH(ctx,y,1*DPR,sec); y+=step*1.6;
     }
-
-    if(marginPx>0){
-      ctx.beginPath(); ctx.moveTo(marginPx,0); ctx.lineTo(marginPx,pauta.height);
-      ctx.lineWidth=2*DPR; ctx.strokeStyle=margin; ctx.stroke();
-    }
+    if(marginPx>0){ ctx.beginPath(); ctx.moveTo(marginPx,0); ctx.lineTo(marginPx,pauta.height); ctx.lineWidth=2*DPR; ctx.strokeStyle=margin; ctx.stroke(); }
   }
   function strokeH(ctx,y,w,c){ ctx.beginPath(); ctx.moveTo(0,y); ctx.lineTo(A4.w,y); ctx.lineWidth=w; ctx.strokeStyle=c; ctx.stroke(); }
 
-  // ====== Anilla (fuera de la hoja) ======
   function drawSpiralCanvas(){
     const ctx=spiral.getContext('2d');
-    ctx.setTransform(1,0,0,1,0,0);
     ctx.clearRect(0,0,spiral.width,spiral.height);
     if(!showSpiral.checked) return;
-
-    const side = spiralSide.value;
-    const holeR   = mm2px(3.2);
-    const pitch   = mm2px(18);
-    const stripW  = mm2px(10);
-    const topPad  = mm2px(12);
-
-    const xStrip = (side==='left') ? (spiral.width - stripW) : 0;
-    const xCenter= (side==='left') ? (xStrip + stripW - holeR*0.9) : (xStrip + holeR*0.9);
-
-    ctx.fillStyle='#f5f5f5';
-    ctx.fillRect(xStrip, 0, stripW, spiral.height);
-
+    const side=spiralSide.value;
+    const holeR=mm2px(3.2), pitch=mm2px(18), stripW=mm2px(10), topPad=mm2px(12);
+    const xStrip=(side==='left')?(spiral.width-stripW):0;
+    const xCenter=(side==='left')?(xStrip+stripW-holeR*0.9):(xStrip+holeR*0.9);
+    ctx.fillStyle='#f5f5f5'; ctx.fillRect(xStrip,0,stripW,spiral.height);
     ctx.fillStyle='rgba(0,0,0,.06)';
     if(side==='left') ctx.fillRect(xStrip+stripW-2*DPR,0,2*DPR,spiral.height);
     else ctx.fillRect(xStrip,0,2*DPR,spiral.height);
-
-    ctx.fillStyle='#d1d5db';
-    ctx.strokeStyle='#9ca3af';
-    ctx.lineWidth=1*DPR;
-    for(let y=topPad; y<=spiral.height-topPad; y+=pitch){
+    ctx.fillStyle='#d1d5db'; ctx.strokeStyle='#9ca3af'; ctx.lineWidth=1*DPR;
+    for(let y=topPad;y<=spiral.height-topPad;y+=pitch){
       ctx.beginPath(); ctx.arc(xCenter,y,holeR,0,Math.PI*2); ctx.fill(); ctx.stroke();
-      // alambre
-      ctx.beginPath();
-      const wireR=holeR*0.55;
-      ctx.arc(xCenter + (side==='left'? -holeR*0.25 : holeR*0.25), y, wireR, -Math.PI/2, Math.PI/2);
+      ctx.beginPath(); const wireR=holeR*0.55;
+      ctx.arc(xCenter+(side==='left'?-holeR*0.25:holeR*0.25),y,wireR,-Math.PI/2,Math.PI/2);
       ctx.strokeStyle='#6b7280'; ctx.stroke();
     }
   }
 
-  // ====== Guía (cabecera fija automática + texto de práctica) ======
   function currentGuideText(){
     const sel=ghostSelect.value;
-    if(!ghostShow.checked || sel==='__none__') return '';
+    if(!ghostShow.checked||sel==='__none__') return '';
     if(sel==='__custom__') return (ghostText.value||'').trim();
     return sel;
   }
   function firstBaseLineY(){
-    const top = parseFloat(pauta.dataset.topPad || 20*DPR);
-    const step= parseFloat(pauta.dataset.step   || mm2px(parseFloat(stepSel.value)));
-    return top + 2*step; // 1ª base roja del patrón
+    const top=parseFloat(pauta.dataset.topPad||20*DPR);
+    const step=parseFloat(pauta.dataset.step||mm2px(parseFloat(stepSel.value)));
+    return top+2*step;
   }
   function baseLineForGuide(){
-    const step   = parseFloat(pauta.dataset.step   || mm2px(parseFloat(stepSel.value)));
-    const period = parseFloat(pauta.dataset.period || step*4.6);
-    const idx    = parseInt(viaIndex.value || '2', 10); // por defecto 2ª
-    return firstBaseLineY() + (idx - 1) * period;
+    const step=parseFloat(pauta.dataset.step||mm2px(parseFloat(stepSel.value)));
+    const period=parseFloat(pauta.dataset.period||step*4.6);
+    const idx=parseInt(viaIndex.value||'2',10);
+    return firstBaseLineY()+(idx-1)*period;
   }
-  function marginXpx(){ return parseFloat(pauta.dataset.margin || mm2px(parseFloat(margenSel.value)||0)); }
+  function marginXpx(){ return parseFloat(pauta.dataset.margin||mm2px(parseFloat(margenSel.value)||0)); }
 
-  // Cabecera fija (1ª vía) con fecha automática
   function drawHeaderLine(ctx){
-    const header = getHeaderText();
-    const fontPx = Math.max(48*DPR, parseInt(ghostSize.value,10)*0.55*DPR);
-    ctx.save();
-    ctx.font = `normal ${fontPx}px "EscolarG", system-ui, sans-serif`;
-    ctx.textBaseline='alphabetic';
-    ctx.fillStyle='rgba(17,24,39,.40)';
-    ctx.strokeStyle='rgba(107,114,128,.55)';
+    const header=getHeaderText();
+    const fontPx=Math.max(48*DPR,parseInt(ghostSize.value,10)*0.55*DPR);
+    ctx.save(); ctx.font=`normal ${fontPx}px "EscolarG",system-ui,sans-serif`; ctx.textBaseline='alphabetic';
+    ctx.fillStyle='rgba(17,24,39,.40)'; ctx.strokeStyle='rgba(107,114,128,.55)';
     ctx.lineWidth=Math.max(1,Math.round(fontPx*0.06));
-    const baseY = firstBaseLineY();
-    let x = Math.max(8*DPR, marginXpx() + 8*DPR);
-    ctx.fillText(header, x, baseY);
-    ctx.strokeText(header, x, baseY);
-    ctx.restore();
+    const baseY=firstBaseLineY(); let x=Math.max(8*DPR,marginXpx()+8*DPR);
+    ctx.fillText(header,x,baseY); ctx.strokeText(header,x,baseY); ctx.restore();
   }
 
   function drawGuide(){
-    const ctx=ghost.getContext('2d');
-    ctx.setTransform(1,0,0,1,0,0);
-    ctx.clearRect(0,0,ghost.width,ghost.height);
-
-    // 1) Cabecera fija automática en la 1ª vía
+    const ctx=ghost.getContext('2d'); ctx.clearRect(0,0,ghost.width,ghost.height);
     drawHeaderLine(ctx);
-
-    // 2) Texto de práctica (en la vía seleccionada)
     const txt=currentGuideText(); if(!txt) return;
-
     const fontPx=parseInt(ghostSize.value,10)*DPR;
-    ctx.font = `normal ${fontPx}px "EscolarG", system-ui, sans-serif`;
-    ctx.textBaseline='alphabetic';
-    ctx.fillStyle='rgba(17,24,39,.28)';
-    ctx.strokeStyle='rgba(107,114,128,.6)';
-    ctx.lineWidth=Math.max(1,Math.round(fontPx*0.06));
-
-    const baseY=baseLineForGuide();
-    let x = Math.max(8*DPR, marginXpx() + 8*DPR);
-
-    if(inlineWord.checked){
-      for(const ch of txt){
-        ctx.fillText(ch, x, baseY);
-        ctx.strokeText(ch, x, baseY);
-        x += ctx.measureText(ch).width + fontPx*0.12;
-      }
-    }else{
-      const total=ctx.measureText(txt).width;
-      ctx.fillText(txt, (A4.w-total)/2, baseY);
-      ctx.strokeText(txt, (A4.w-total)/2, baseY);
-    }
+    ctx.font=`normal ${fontPx}px "EscolarG",system-ui,sans-serif`; ctx.textBaseline='alphabetic';
+    ctx.fillStyle='rgba(17,24,39,.28)'; ctx.strokeStyle='rgba(107,114,128,.6)'; ctx.lineWidth=Math.max(1,Math.round(fontPx*0.06));
+    const baseY=baseLineForGuide(); let x=Math.max(8*DPR,marginXpx()+8*DPR);
+    if(inlineWord.checked){ for(const ch of txt){ ctx.fillText(ch,x,baseY); ctx.strokeText(ch,x,baseY); x+=ctx.measureText(ch).width+fontPx*0.12; } }
+    else{ const total=ctx.measureText(txt).width; ctx.fillText(txt,(A4.w-total)/2,baseY); ctx.strokeText(txt,(A4.w-total)/2,baseY); }
   }
-
-  // ====== Dibujo libre + Historial ======
-  const dctx=draw.getContext('2d'); dctx.lineCap='round'; dctx.lineJoin='round';
-  let drawing=false, points=[];
-  const history=[]; let redoStack=[];
-
-  function setComposite(){
-    dctx.globalCompositeOperation = (toolSel.value==='eraser') ? 'destination-out' : 'source-over';
-  }
-  function pointerPos(e){
-    const r=draw.getBoundingClientRect();
-    return {x:(e.clientX-r.left)*DPR, y:(e.clientY-r.top)*DPR};
-  }
-  function startDraw(e){
-    e.preventDefault(); drawing=true; redoStack.length=0;
-    points=[pointerPos(e)];
-    dctx.save(); setComposite();
-    dctx.lineWidth=parseFloat(penSize.value)*DPR;
-    dctx.strokeStyle='#111';
-    dctx.beginPath(); dctx.arc(points[0].x,points[0].y,dctx.lineWidth/2,0,Math.PI*2); dctx.fill();
-  }
-  function moveDraw(e){
-    if(!drawing) return;
-    const p = pointerPos(e);
-    const prev = points[points.length-1];
-    points.push(p);
-    dctx.beginPath();
-    const mx=(prev.x+p.x)/2, my=(prev.y+p.y)/2;
-    dctx.quadraticCurveTo(prev.x,prev.y,mx,my);
-    dctx.stroke();
-  }
-  function endDraw(){
-    if(!drawing) return;
-    drawing=false;
-    history.push([{
-      mode: dctx.globalCompositeOperation,
-      size: dctx.lineWidth,
-      color:'#111',
-      path: points.slice()
-    }]);
-    dctx.restore();
-  }
-  function redrawDrawLayer(){
-    dctx.setTransform(1,0,0,1,0,0);
-    dctx.clearRect(0,0,draw.width,draw.height);
-    const strokes = history.flat();
-    strokes.forEach(s=>{
-      dctx.save();
-      dctx.globalCompositeOperation=s.mode;
-      dctx.lineWidth=s.size;
-      dctx.strokeStyle=s.color;
-      if(s.path.length===1){
-        const p=s.path[0];
-        dctx.beginPath(); dctx.arc(p.x,p.y,dctx.lineWidth/2,0,Math.PI*2); dctx.fill();
-      }else{
-        dctx.beginPath();
-        for(let i=0;i<s.path.length-1;i++){
-          const a=s.path[i], b=s.path[i+1];
-          const mx=(a.x+b.x)/2, my=(a.y+b.y)/2;
-          if(i===0) dctx.moveTo(a.x,a.y);
-          dctx.quadraticCurveTo(a.x,a.y,mx,my);
-        }
-        dctx.stroke();
-      }
-      dctx.restore();
-    });
-  }
-  function undo(){ if(!history.length) return; redoStack.push(history.pop()); redrawDrawLayer(); }
-  function redo(){ if(!redoStack.length) return; history.push(redoStack.pop()); redrawDrawLayer(); }
-  function clearDraw(){ history.length=0; redoStack.length=0; redrawDrawLayer(); }
-
-  ['pointerdown','pointermove','pointerup','pointercancel','pointerleave'].forEach(ev=>{
-    draw.addEventListener(ev, e=>{
-      if(ev==='pointerdown') startDraw(e);
-      else if(ev==='pointermove') moveDraw(e);
-      else endDraw();
-    }, {passive:false});
-  });
-  toolSel.addEventListener('change', setComposite);
-
-  // ====== Exportar (incluye cabecera fija automática) ======
-  function composeToCanvas(){
-    const off=document.createElement('canvas'); off.width=A4.w; off.height=A4.h;
-    const o=off.getContext('2d');
-
-    // Fondo papel
-    o.fillStyle='#fff'; o.fillRect(0,0,off.width,off.height);
-
-    // Pauta (sin transform y con paleta)
-    if(showPauta.checked){
-      const step  = mm2px(parseFloat(stepSel.value));
-      const top   = 20*DPR;
-      const {base, sec, margin} = palette(colorSel.value);
-      const marginPx = mm2px(parseFloat(margenSel.value)||0);
-      let y=top;
-      while(y<A4.h-top){
-        strokeH(o,y,1*DPR,sec); y+=step;        // ascendente
-        strokeH(o,y,1*DPR,sec); y+=step;        // techo
-        strokeH(o,y,1.5*DPR,base); y+=step;     // base
-        strokeH(o,y,1*DPR,sec); y+=step*1.6;    // descendente + espacio
-      }
-      if(marginPx>0){
-        o.beginPath(); o.moveTo(marginPx,0); o.lineTo(marginPx,A4.h);
-        o.lineWidth=2*DPR; o.strokeStyle=margin; o.stroke();
-      }
-    }
-
-    // Cabecera fija automática (1ª vía)
-    (function drawHeaderToExport(ctx){
-      const step=mm2px(parseFloat(stepSel.value));
-      const baseY = 20*DPR + 2*step; // 1ª vía
-      const header = getHeaderText();
-      const fontPx=Math.max(48*DPR, parseInt(ghostSize.value,10)*0.55*DPR);
-      ctx.save();
-      ctx.font = `normal ${fontPx}px "EscolarG", system-ui, sans-serif`;
-      ctx.textBaseline='alphabetic';
-      ctx.fillStyle='rgba(17,24,39,.40)';
-      ctx.strokeStyle='rgba(107,114,128,.55)';
-      ctx.lineWidth=Math.max(1,Math.round(fontPx*0.06));
-      let x = Math.max(8*DPR, mm2px(parseFloat(margenSel.value)||0) + 8*DPR);
-      ctx.fillText(header, x, baseY);
-      ctx.strokeText(header, x, baseY);
-      ctx.restore();
-    })(o);
-
-    // Guía (sin transform) — usa EscolarG
-    const fontPx=parseInt(ghostSize.value,10)*DPR;
-    const txt=currentGuideText();
-    if(txt){
-      o.font = `normal ${fontPx}px "EscolarG", system-ui, sans-serif`;
-      o.textBaseline='alphabetic';
-      o.fillStyle='rgba(17,24,39,.28)';
-      o.strokeStyle='rgba(107,114,128,.6)';
-      o.lineWidth=Math.max(1,Math.round(fontPx*0.06));
-      const step=mm2px(parseFloat(stepSel.value)), period=step*4.6;
-      const baseY = 20*DPR + 2*step + (parseInt(viaIndex.value||'2',10)-1)*period;
-      let x = Math.max(8*DPR, mm2px(parseFloat(margenSel.value)||0) + 8*DPR);
-      if(inlineWord.checked){
-        for(const ch of txt){
-          o.fillText(ch, x, baseY);
-          o.strokeText(ch, x, baseY);
-          x += o.measureText(ch).width + fontPx*0.12;
-        }
-      }else{
-        const total=o.measureText(txt).width;
-        o.fillText(txt, (A4.w-total)/2, baseY);
-        o.strokeText(txt, (A4.w-total)/2, baseY);
-      }
-    }
-
-    // Trazos (replay)
-    const strokes = history.flat();
-    strokes.forEach(s=>{
-      o.save();
-      o.globalCompositeOperation=s.mode;
-      o.lineWidth=s.size;
-      o.strokeStyle=s.color;
-      if(s.path.length===1){
-        const p=s.path[0];
-        o.beginPath(); o.arc(p.x,p.y,o.lineWidth/2,0,Math.PI*2); o.fill();
-      }else{
-        o.beginPath();
-        for(let i=0;i<s.path.length-1;i++){
-          const a=s.path[i], b=s.path[i+1];
-          const mx=(a.x+b.x)/2, my=(a.y+b.y)/2;
-          if(i===0) o.moveTo(a.x,a.y);
-          o.quadraticCurveTo(a.x,a.y,mx,my);
-        }
-        o.stroke();
-      }
-      o.restore();
-    });
-
-    return off;
-  }
-
-  function redrawAll(){ drawPauta(); drawGuide(); redrawDrawLayer(); drawSpiralCanvas(); }
-
-  // ====== Eventos ======
-  [stepSel,margenSel,colorSel,showPauta].forEach(el=>el.addEventListener('change', redrawAll));
-  document.getElementById('redraw').onclick=redrawAll;
-
-  ghostSelect.addEventListener('change',()=>{
-    const v=ghostSelect.value;
-    ghostText.style.display=(v==='__custom__')?'inline-block':'none';
-    if(v==='__none__'){ ghostShow.checked=false; } else { ghostShow.checked=true; }
-    redrawAll();
-  });
-  [ghostText,ghostSize,ghostShow,inlineWord,viaIndex].forEach(el=>el.addEventListener('input', redrawAll));
-
-  const savePngBtn=document.getElementById('savePng');
-  savePngBtn.onclick=()=>{
-    const off=composeToCanvas();
-    const a=document.createElement('a');
-    a.href=off.toDataURL('image/png');
-    a.download='pauta-trazos.png';
-    a.click();
-  };
-
-  const printPdfBtn=document.getElementById('printPdf');
-  printPdfBtn.onclick=()=>{
-    const off=composeToCanvas();
-    const url=off.toDataURL('image/png');
-    const w = window.open('', '_blank');
-    if(!w) return;
-    w.document.write(`<!DOCTYPE html><html><head><meta charset="utf-8">
-      <title>Imprimir — Pauta</title>
-      <style>
-        @page { size: A4; margin: 0; }
-        html,body{ height:100%; margin:0; }
-        .page{ width:210mm; height:297mm; display:flex; align-items:center; justify-content:center; }
-        img{ width:210mm; height:297mm; }
-        @media print { .hint{ display:none } }
-        body{ background:#fff }
-      </style>
-    </head><body>
-      <div class="page"><img src="${url}" alt="Pauta A4"></div>
-      <div class="hint" style="text-align:center;padding:8px;font-family:sans-serif;color:#666">
-        Usa «Guardar como PDF» para exportar en A4, sin márgenes.
-      </div>
-      <script>window.onload=function(){ setTimeout(()=>window.print(), 100); }<\/script>
-    </body></html>`);
-    w.document.close();
-  };
-
-  const undoBtn=document.getElementById('undo');
-  const redoBtn=document.getElementById('redo');
-  const clearBtn=document.getElementById('clear');
-
-  function undo(){ if(!history.length) return; redoStack.push(history.pop()); redrawDrawLayer(); }
-  function redo(){ if(!redoStack.length) return; history.push(redoStack.pop()); redrawDrawLayer(); }
-  function clearDraw(){ history.length=0; redoStack.length=0; redrawDrawLayer(); }
-
-  undoBtn.onclick=undo;
-  redoBtn.onclick=redo;
-  clearBtn.onclick=clearDraw;
 
   const dctx=draw.getContext('2d'); dctx.lineCap='round'; dctx.lineJoin='round';
-  let drawing=false, points=[]; const history=[]; let redoStack=[];
+  let drawing=false,points=[]; const history=[]; let redoStack=[];
   function setComposite(){ dctx.globalCompositeOperation=(toolSel.value==='eraser')?'destination-out':'source-over'; }
-  draw.addEventListener('pointerdown',e=>{ e.preventDefault(); drawing=true; redoStack.length=0; points=[{x:(e.clientX-draw.getBoundingClientRect().left)*DPR,y:(e.clientY-draw.getBoundingClientRect().top)*DPR}]; dctx.save(); setComposite(); dctx.lineWidth=parseFloat(penSize.value)*DPR; dctx.strokeStyle='#111'; dctx.beginPath(); dctx.arc(points[0].x,points[0].y,dctx.lineWidth/2,0,Math.PI*2); dctx.fill(); });
-  draw.addEventListener('pointermove',e=>{ if(!drawing) return; const r=draw.getBoundingClientRect(); const p={x:(e.clientX-r.left)*DPR,y:(e.clientY-r.top)*DPR}; const prev=points[points.length-1]; points.push(p); dctx.beginPath(); const mx=(prev.x+p.x)/2,my=(prev.y+p.y)/2; dctx.quadraticCurveTo(prev.x,prev.y,mx,my); dctx.stroke(); });
-  draw.addEventListener('pointerup',()=>{ if(!drawing) return; drawing=false; history.push([{mode:dctx.globalCompositeOperation,size:dctx.lineWidth,color:'#111',path:points.slice()}]); dctx.restore(); });
-
-  toolSel.addEventListener('change', setComposite);
-
-  // ====== Init ======
-  // (HTML ya viene con 4mm y "suave" seleccionados)
-  resizeA4();
-  setComposite();
-
-  // Asegurar que la fuente está lista antes de la primera guía
-  if (document.fonts && document.fonts.ready) {
-    document.fonts.ready.then(()=>{ redrawAll(); });
-  } else {
-    redrawAll();
-  }
-
-  // Recolocar/repintar al cambiar lado de anilla o tamaño de ventana
-  [showSpiral, spiralSide].forEach(el=>{
-    el.addEventListener('change', ()=>{
-      spiral.style.left = (spiralSide.value==='left') ? px2css(-SPIRAL_W) : px2css(A4.w);
-      drawSpiralCanvas();
-    });
-  });
-  window.addEventListener('resize', ()=>{ resizeA4(); redrawAll(); }, {passive:true});
-})();
-</script>
-</body>
-</html>
+  function pointerPos(e){ const r=draw.getBoundingClientRect(); return {x:(e.clientX-r.left)*DPR,y
