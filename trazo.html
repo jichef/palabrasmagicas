@@ -22,7 +22,7 @@
     min-height:100vh;display:flex;flex-direction:column;
   }
 
-  /* Barra de herramientas (scroll si no cabe) */
+  /* Barra de herramientas */
   header{
     flex:0 0 auto;background:#fff;border-bottom:1px solid var(--border);
     padding:.6rem .8rem;display:flex;flex-wrap:wrap;gap:.6rem 1rem;align-items:center;
@@ -37,18 +37,20 @@
   button{border:1px solid var(--border);border-radius:.5rem;background:#fff;padding:.45rem .65rem;cursor:pointer}
   button:active{transform:translateY(1px)}
 
-  /* Zona de lienzos: hoja A4 justo debajo del header */
+  /* Hoja A4 debajo del header */
   main{
     flex:1 1 auto;display:flex;justify-content:center;align-items:flex-start;
     overflow:auto;padding:8px;
   }
   .paper{
-    position:relative; /* tamaño CSS lo pone JS a A4 */
+    position:relative; /* width/height CSS se fijan por JS */
     border:1px solid var(--border);
     border-radius:12px;
     background:#fff;
     box-shadow:0 4px 16px rgba(0,0,0,.10);
   }
+
+  /* Canvases superpuestos, mismo tamaño CSS que el papel (JS lo asegura) */
   canvas{position:absolute; top:0; left:0; touch-action:none; border-radius:12px}
   #pautaCanvas{ z-index:1; pointer-events:none; }
   #drawCanvas { z-index:2; }
@@ -158,7 +160,7 @@
 
 <script>
 (()=>{
-  // ====== Básicos / A4 ======
+  // ====== A4 / medidas ======
   const DPR = Math.max(1, window.devicePixelRatio||1);
   const mm2px = mm => mm*96/25.4*DPR;
   const px2css = px => (px/DPR)+'px';
@@ -171,7 +173,14 @@
   const cvs=[pauta,draw,ghost];
 
   function resizeA4(){
-    cvs.forEach(cv=>{ cv.width=A4.w; cv.height=A4.h; });
+    // Tamaño interno y CSS de cada canvas
+    cvs.forEach(cv=>{
+      cv.width  = A4.w;
+      cv.height = A4.h;
+      cv.style.width  = px2css(A4.w);
+      cv.style.height = px2css(A4.h);
+    });
+    // Tamaño CSS del papel
     paper.style.width  = px2css(A4.w);
     paper.style.height = px2css(A4.h);
     redrawAll();
@@ -258,15 +267,17 @@
     pauta.dataset.period = String(period);
     pauta.dataset.margin = String(marginPx);
 
+    // 🔒 Siempre papel blanco visible
+    const bg = pauta.getContext('2d');
+    bg.fillStyle = '#fff';
+    bg.fillRect(0,0,pauta.width,pauta.height);
+
     if(!showPauta.checked) return;
 
     applyView(ctx);
     const {base, sec, margin} = palette(colorSel.value);
 
-    // fondo
-    ctx.fillStyle="#fff"; ctx.fillRect(0,0,A4.w,A4.h);
-
-    // líneas
+    // Líneas de la pauta
     let y=top;
     while(y<A4.h-top){
       strokeH(ctx,y,1*DPR,sec); y+=step;        // ascendente
@@ -274,7 +285,7 @@
       strokeH(ctx,y,1.5*DPR,base); y+=step;     // base
       strokeH(ctx,y,1*DPR,sec); y+=step*1.6;    // descendente + espacio
     }
-    // margen vertical
+    // Margen vertical
     if(marginPx>0){
       ctx.beginPath(); ctx.moveTo(marginPx,0); ctx.lineTo(marginPx,A4.h);
       ctx.lineWidth=2*DPR; ctx.strokeStyle=margin; ctx.stroke();
@@ -326,7 +337,6 @@
     applyView(ctx);
 
     const fontPx=parseInt(ghostSize.value,10)*DPR;
-    // 💡 USO DE LA FUENTE ESCOLARG AQUÍ
     ctx.font = `normal ${fontPx}px "EscolarG", "Comic Sans MS", "Segoe Print", system-ui, sans-serif`;
     ctx.textBaseline='alphabetic';
     ctx.fillStyle='rgba(17,24,39,.28)';
@@ -368,7 +378,7 @@
     if(!animateGuide.checked && animReq){ cancelAnimationFrame(animReq); animReq=null; redrawAll(); }
   });
 
-  // Botón: centrar vista al margen izquierdo (útil si has hecho pan/zoom)
+  // Centrar vista al margen izquierdo (si has hecho pan/zoom)
   centerToMarginBtn.onclick = ()=>{
     const mx = marginXpx() + 60*DPR;
     const targetWorld = {x: mx, y: firstBaseLineY()};
@@ -379,7 +389,7 @@
     redrawAll();
   };
 
-  // ====== Dibujo libre + Historial (undo/redo) con transform ======
+  // ====== Dibujo / Historial ======
   const dctx=draw.getContext('2d'); dctx.lineCap='round'; dctx.lineJoin='round';
   let drawing=false, points=[];
   const history=[]; let redoStack=[];
@@ -473,10 +483,10 @@
     const off=document.createElement('canvas'); off.width=A4.w; off.height=A4.h;
     const o=off.getContext('2d');
 
-    // FONDO
+    // Fondo papel
     o.fillStyle='#fff'; o.fillRect(0,0,off.width,off.height);
 
-    // --- Pauta (sin transform para export limpio) ---
+    // Pauta (sin transform)
     if(showPauta.checked){
       const step  = mm2px(parseFloat(stepSel.value));
       const top   = 20*DPR;
@@ -495,7 +505,7 @@
       }
     }
 
-    // --- Guía (sin transform) — usa EscolarG también en export ---
+    // Guía (sin transform)
     const fontPx=parseInt(ghostSize.value,10)*DPR;
     const txt=currentGuideText();
     if(txt){
@@ -521,7 +531,7 @@
       }
     }
 
-    // --- Trazos (replay sin transform) ---
+    // Trazos (replay)
     const strokes = history.flat();
     strokes.forEach(s=>{
       o.save();
@@ -600,15 +610,19 @@
   redoBtn.onclick  = ()=>redo();
 
   // Pan con "mano" (arrastrar lienzo en draw)
-  let draggingView=false, lastPan={x:0,y:0};
   draw.addEventListener('pointerdown', e=>{ if(view.hand){ e.preventDefault(); } }, {passive:false});
 
   // ====== Init ======
+  showPauta.checked = true;       // asegurar pauta visible
   resizeA4();
   ghostSelect.value='a'; ghostShow.checked=true; inlineWord.checked=true;
-  // Asegurar que la fuente esté lista antes del primer trazado de guía
-  document.fonts && document.fonts.ready.then(()=>{ redrawAll(); });
   setComposite();
+  // Esperar a que esté lista la fuente antes del primer pintado de la guía
+  if (document.fonts && document.fonts.ready) {
+    document.fonts.ready.then(()=>{ redrawAll(); });
+  } else {
+    redrawAll();
+  }
   animateGuide.checked=false;
 })();
 </script>
