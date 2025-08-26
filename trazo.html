@@ -4,7 +4,11 @@
 <meta charset="utf-8" />
 <meta name="viewport" content="width=device-width,initial-scale=1,viewport-fit=cover" />
 <title>Pauta Lamela — práctica de trazos</title>
+
+<!-- Preload de la fuente para evitar FOUT -->
+<link rel="preload" href="escolar_G.woff2" as="font" type="font/woff2" crossorigin>
 <link rel="icon" href='data:image/svg+xml,<svg xmlns="http://www.w3.org/2000/svg"/>'>
+
 <style>
   /* === Fuente escolar === */
   @font-face{
@@ -47,8 +51,8 @@
     border-radius:12px;
     background:#fff;
     box-shadow:0 4px 16px rgba(0,0,0,.10);
-    transform-origin: top left; /* para zoom/pan */
-    touch-action: none; /* mejor control del pan */
+    transform-origin: top left; /* zoom/pan */
+    touch-action: none;         /* pan controlado */
   }
 
   canvas{position:absolute; top:0; left:0; touch-action:none}
@@ -175,7 +179,7 @@
 
 <script>
 (()=>{
-  // ==== Utilidades ====
+  // ====== Utilidades ======
   const DPR = Math.max(1, window.devicePixelRatio||1);
   const mm2px = mm => mm*96/25.4*DPR;
   const px2css = px => (px/DPR)+'px';
@@ -184,13 +188,27 @@
 
   // Fecha automática
   function formatTodayEs(){
-    return new Intl.DateTimeFormat('es-ES',{
-      day:'numeric', month:'long', year:'numeric'
-    }).format(new Date());
+    return new Intl.DateTimeFormat('es-ES',{day:'numeric', month:'long', year:'numeric'}).format(new Date());
   }
   function getHeaderText(){ return `Granada — ${formatTodayEs()}`; }
 
-  // ==== Elementos ====
+  // ====== Carga fiable de la fuente escolar (evita FOUT) ======
+  let escolarReadyPromise = null;
+  function waitEscolar() {
+    if (!escolarReadyPromise) {
+      if (document.fonts && document.fonts.load) {
+        escolarReadyPromise = Promise.all([
+          document.fonts.load('16px "EscolarG"'),
+          document.fonts.ready
+        ]).catch(()=>{});
+      } else {
+        escolarReadyPromise = new Promise(r=>setTimeout(r, 200));
+      }
+    }
+    return escolarReadyPromise;
+  }
+
+  // ====== Elementos ======
   const paper=document.getElementById('paper');
   const pauta=document.getElementById('pautaCanvas');
   const draw=document.getElementById('drawCanvas');
@@ -221,20 +239,20 @@
   const savePngBtn=document.getElementById('savePng');
   const printPdfBtn=document.getElementById('printPdf');
 
-  // Vista
+  // Vista (Zoom/Pan)
   const zoomInBtn=document.getElementById('zoomIn');
   const zoomOutBtn=document.getElementById('zoomOut');
   const zoomResetBtn=document.getElementById('zoomReset');
   const panMode=document.getElementById('panMode');
 
-  // ==== Paletas ====
+  // ====== Paletas ======
   function palette(mode){
     if(mode==='suave') return {base:'#f87171', sec:'#93c5fd', margin:'#22c55e'};
     if(mode==='alto')  return {base:'#dc2626', sec:'#1d4ed8', margin:'#16a34a'};
     return {base:'#ef4444', sec:'#3b82f6', margin:'#10b981'};
   }
 
-  // ==== Tamaños y colocación ====
+  // ====== Tamaños y colocación ======
   function resizeA4(){
     cvs.forEach(cv=>{
       cv.width=A4.w; cv.height=A4.h;
@@ -250,7 +268,7 @@
     spiral.style.left=(spiralSide.value==='left')?px2css(-SPIRAL_W):px2css(A4.w);
   }
 
-  // ==== Pauta Lamela + Cuadrícula vertical ====
+  // ====== Pauta Lamela + Cuadrícula vertical ======
   function strokeH(ctx,y,w,c){ ctx.beginPath(); ctx.moveTo(0,y); ctx.lineTo(A4.w,y); ctx.lineWidth=w; ctx.strokeStyle=c; ctx.stroke(); }
   function strokeV(ctx,x,w,c){ ctx.beginPath(); ctx.moveTo(x,0); ctx.lineTo(x,A4.h); ctx.lineWidth=w; ctx.strokeStyle=c; ctx.stroke(); }
 
@@ -259,7 +277,7 @@
     ctx.save();
     ctx.globalAlpha = 0.15; // tenue
     ctx.lineWidth = Math.max(0.75*DPR, 0.5*DPR);
-    // ⬇️ Ahora empieza EXACTAMENTE en el margen
+    // Empieza exactamente en la línea de margen
     let x = Math.max(0, marginPx);
     while(x < A4.w - 1){
       strokeV(ctx, x, ctx.lineWidth, secColor);
@@ -282,13 +300,13 @@
     const marginPx=mm2px(parseFloat(margenSel.value)||0);
     const {base,sec,margin}=palette(colorSel.value);
 
-    // para la guía
+    // datos para guía
     pauta.dataset.topPad=String(top);
     pauta.dataset.step=String(step);
     pauta.dataset.period=String(period);
     pauta.dataset.margin=String(marginPx);
 
-    // cuadrícula vertical primero (debajo de las horizontales)
+    // cuadrícula vertical (debajo de horizontales)
     drawGridVertical(ctx, step, marginPx, sec);
 
     if(!showPauta.checked) return;
@@ -309,7 +327,7 @@
     }
   }
 
-  // ==== Anilla (fuera de la hoja) ====
+  // ====== Anilla (fuera de la hoja) ======
   function drawSpiralCanvas(){
     const ctx=spiral.getContext('2d');
     ctx.setTransform(1,0,0,1,0,0);
@@ -339,7 +357,7 @@
     }
   }
 
-  // ==== Guía (cabecera automática + texto de práctica) ====
+  // ====== Guía (cabecera automática + texto de práctica) ======
   function currentGuideText(){
     const sel=ghostSelect.value;
     if(!ghostShow.checked || sel==='__none__') return '';
@@ -353,9 +371,9 @@
   }
   function baseLineForGuide(){
     const step   = parseFloat(pauta.dataset.step   || mm2px(parseFloat(stepSel.value)));
-    thePeriod = parseFloat(pauta.dataset.period || step*4.6);
+    const period = parseFloat(pauta.dataset.period || step*4.6);
     const idx    = parseInt(viaIndex.value || '2', 10); // por defecto 2ª
-    return firstBaseLineY() + (idx - 1) * thePeriod;
+    return firstBaseLineY() + (idx - 1) * period;
   }
   function marginXpx(){ return parseFloat(pauta.dataset.margin || mm2px(parseFloat(margenSel.value)||0)); }
 
@@ -409,7 +427,7 @@
     }
   }
 
-  // ==== Dibujo libre + Historial ====
+  // ====== Dibujo libre + Historial ======
   const dctx=draw.getContext('2d'); dctx.lineCap='round'; dctx.lineJoin='round';
   let drawing=false, points=[];
   const history=[]; let redoStack=[];
@@ -489,7 +507,7 @@
   });
   toolSel.addEventListener('change', setComposite);
 
-  // ==== Exportar (incluye cuadrícula si está activada; NO anilla) ====
+  // ====== Exportar (incluye cuadrícula si está activada; NO anilla) ======
   function composeToCanvas(){
     const off=document.createElement('canvas'); off.width=A4.w; off.height=A4.h;
     const o=off.getContext('2d');
@@ -503,12 +521,12 @@
     const {base, sec, margin} = palette(colorSel.value);
     const marginPx = mm2px(parseFloat(margenSel.value)||0);
 
-    // cuadrícula vertical primero (tenue) — empieza en el margen
+    // cuadrícula vertical (tenue) — empieza en el margen
     if(showGrid.checked){
       o.save();
       o.globalAlpha=0.15;
       o.lineWidth=Math.max(0.75*DPR,0.5*DPR);
-      let x=Math.max(0,marginPx); // ⬅️ desde la línea de margen
+      let x=Math.max(0,marginPx);
       while(x<A4.w-1){ strokeV(o,x,o.lineWidth,sec); x+=step; }
       o.restore();
     }
@@ -595,7 +613,9 @@
     return off;
   }
 
-  savePngBtn.onclick=()=>{
+  // Exportar (espera la fuente)
+  savePngBtn.onclick = async ()=>{
+    await waitEscolar();
     const off=composeToCanvas();
     const a=document.createElement('a');
     a.href=off.toDataURL('image/png');
@@ -603,7 +623,8 @@
     a.click();
   };
 
-  printPdfBtn.onclick=()=>{
+  printPdfBtn.onclick = async ()=>{
+    await waitEscolar();
     const off=composeToCanvas();
     const url=off.toDataURL('image/png');
     const w = window.open('', '_blank');
@@ -628,27 +649,25 @@
     w.document.close();
   };
 
-  // ==== Vista: Zoom & Pan (sólo visual; export no se afecta) ====
+  // ====== Vista: Zoom & Pan (solo visual; export no cambia) ======
   let viewScale=1, viewX=0, viewY=0;
   function applyView(){
     paper.style.transform = `translate(${viewX}px, ${viewY}px) scale(${viewScale})`;
   }
   function zoomBy(factor, centerX=null, centerY=null){
-    // Zoom hacia un punto (si se pasa); si no, hacia la esquina sup. izq.
     const prevScale = viewScale;
     const newScale = Math.min(4, Math.max(0.3, viewScale * factor));
     if (newScale === prevScale) return;
     if (centerX!==null && centerY!==null){
-      // mantener el punto de zoom en pantalla
       viewX = centerX - (centerX - viewX) * (newScale/prevScale);
       viewY = centerY - (centerY - viewY) * (newScale/prevScale);
     }
     viewScale = newScale;
     applyView();
   }
-  zoomInBtn.onclick = ()=> zoomBy(1.15, window.innerWidth/2, 200);
-  zoomOutBtn.onclick= ()=> zoomBy(1/1.15, window.innerWidth/2, 200);
-  zoomResetBtn.onclick=()=>{ viewScale=1; viewX=0; viewY=0; applyView(); };
+  document.getElementById('zoomIn').onclick = ()=> zoomBy(1.15, window.innerWidth/2, 200);
+  document.getElementById('zoomOut').onclick= ()=> zoomBy(1/1.15, window.innerWidth/2, 200);
+  document.getElementById('zoomReset').onclick=()=>{ viewScale=1; viewX=0; viewY=0; applyView(); };
 
   // Pan con arrastre
   let panning=false, panStart={x:0,y:0}, viewStart={x:0,y:0};
@@ -673,10 +692,18 @@
   paper.addEventListener('pointercancel', endPan);
   paper.addEventListener('pointerleave', endPan);
 
-  // ==== Redibujado global ====
+  // Ctrl + rueda = zoom
+  document.addEventListener('wheel', e=>{
+    if(!e.ctrlKey) return;
+    e.preventDefault();
+    const factor = e.deltaY>0 ? 1/1.08 : 1.08;
+    zoomBy(factor, e.clientX, e.clientY);
+  }, {passive:false});
+
+  // ====== Redibujado global ======
   function redrawAll(){ drawPauta(); drawGuide(); redrawDrawLayer(); drawSpiralCanvas(); }
 
-  // ==== Eventos ====
+  // ====== Eventos ======
   [stepSel,margenSel,colorSel,showPauta,showGrid].forEach(el=>el.addEventListener('change', redrawAll));
   redrawBtn.onclick=redrawAll;
 
@@ -694,24 +721,19 @@
 
   [showSpiral, spiralSide].forEach(el=>{
     el.addEventListener('change', ()=>{
-      spiral.style.left = (spiralSide.value==='left') ? px2css(SPIRAL_W*-1) : px2css(A4.w);
+      spiral.style.left = (spiralSide.value==='left') ? px2css(-SPIRAL_W) : px2css(A4.w);
       drawSpiralCanvas();
     });
   });
 
-  // Rueda con Ctrl -> zoom (opcional)
-  document.addEventListener('wheel', e=>{
-    if(!e.ctrlKey) return;
-    e.preventDefault();
-    const factor = e.deltaY>0 ? 1/1.08 : 1.08;
-    zoomBy(factor, e.clientX, e.clientY);
-  }, {passive:false});
+  // ====== Init (espera a la fuente y luego pinta) ======
+  (async ()=>{
+    resizeA4();
+    await waitEscolar();   // asegura EscolarG cargada
+    redrawAll();           // primer dibujado ya con la fuente correcta
+    applyView();
+  })();
 
-  // ==== Init ====
-  resizeA4();
-  if (document.fonts && document.fonts.ready) { document.fonts.ready.then(()=>{ redrawAll(); }); }
-  else { redrawAll(); }
-  applyView();
   window.addEventListener('resize', ()=>{ resizeA4(); redrawAll(); }, {passive:true});
 
 })();
