@@ -11,119 +11,61 @@
     src: url('escolar_G.woff2') format('woff2');
     font-display: swap;
   }
-
   :root{
     --ink:#111; --panel:#fff; --border:#d1d5db; --bg:#f3f4f6;
     --sec:#3b82f6; --base:#ef4444; --margin:#10b981;
   }
-  body{
-    margin:0;background:var(--bg);
-    font-family:system-ui,-apple-system,Segoe UI,Roboto,Helvetica,Arial;
-    min-height:100vh;display:flex;flex-direction:column;
-  }
-
-  header{
-    flex:0 0 auto;background:#fff;border-bottom:1px solid var(--border);
+  body{margin:0;background:var(--bg);font-family:system-ui,-apple-system,Segoe UI,Roboto,Helvetica,Arial;
+    min-height:100vh;display:flex;flex-direction:column;}
+  header{flex:0 0 auto;background:#fff;border-bottom:1px solid var(--border);
     padding:.6rem .8rem;display:flex;flex-wrap:wrap;gap:.6rem 1rem;align-items:center;
-    overflow-x:auto;position:sticky;top:0;z-index:10;
-  }
+    overflow-x:auto;position:sticky;top:0;z-index:10;}
   header .group{display:flex;flex-wrap:wrap;gap:.5rem;align-items:center}
   label{font-size:.9rem;color:#374151}
-  select,input[type="text"]{
-    border:1px solid var(--border);border-radius:.5rem;padding:.35rem .5rem;background:#fff
-  }
+  select,input[type="text"]{border:1px solid var(--border);border-radius:.5rem;padding:.35rem .5rem;background:#fff}
   input[type="range"]{width:120px}
   button{border:1px solid var(--border);border-radius:.5rem;background:#fff;padding:.45rem .65rem;cursor:pointer}
   button:active{transform:translateY(1px)}
-
-  main{
-    flex:1 1 auto;display:flex;justify-content:center;align-items:flex-start;
-    overflow:auto;padding:8px;
-  }
-  .paper{
-    position:relative;
-    border:1px solid var(--border);
-    border-radius:12px;
-    background:#fff;
-    box-shadow:0 4px 16px rgba(0,0,0,.10);
-  }
-
-  canvas{position:absolute; top:0; left:0; touch-action:none}
-  #spiralCanvas{z-index:0; pointer-events:none; border-radius:0;}
-  #pautaCanvas{ z-index:1; pointer-events:none; border-radius:12px; }
-  #drawCanvas { z-index:2; border-radius:12px; }
-  #ghostCanvas{ z-index:3; pointer-events:none; border-radius:12px; }
+  main{flex:1 1 auto;display:flex;justify-content:center;align-items:flex-start;overflow:auto;padding:8px;}
+  .paper{position:relative;border:1px solid var(--border);border-radius:12px;background:#fff;box-shadow:0 4px 16px rgba(0,0,0,.10);}
+  canvas{position:absolute;top:0;left:0;touch-action:none}
+  #spiralCanvas{z-index:0;pointer-events:none;border-radius:0;}
+  #pautaCanvas{z-index:1;pointer-events:none;border-radius:12px;}
+  #drawCanvas{z-index:2;border-radius:12px;}
+  #ghostCanvas{z-index:3;pointer-events:none;border-radius:12px;}
 </style>
 </head>
 <body>
 <header>
   <div class="group">
     <button id="savePng">💾 PNG</button>
-    <button id="printPdf">🖨️ Imprimir / PDF</button>
+    <button id="printPdf">🖨️ PDF</button>
     <button id="clear">🗑️ Limpiar</button>
   </div>
   <div class="group">
-    <label>Herramienta:</label>
-    <select id="tool">
-      <option value="pen" selected>✏️ Lápiz</option>
-      <option value="eraser">🩹 Goma</option>
-    </select>
-    <label>Grosor:</label>
-    <input id="penSize" type="range" min="1" max="16" value="4" />
-    <button id="undo" title="Deshacer">↶</button>
-    <button id="redo" title="Rehacer">↷</button>
+    <label>Herr:</label>
+    <select id="tool"><option value="pen" selected>✏️</option><option value="eraser">🩹</option></select>
+    <label>Grosor:</label><input id="penSize" type="range" min="1" max="16" value="4"/>
+    <button id="undo">↶</button><button id="redo">↷</button>
   </div>
   <div class="group">
     <label>Pauta:</label>
-    <select id="pautaStep">
-      <option value="2.5">2.5 mm</option>
-      <option value="3" selected>3 mm</option>
-      <option value="4">4 mm</option>
-    </select>
+    <select id="pautaStep"><option value="2.5">2.5mm</option><option value="3" selected>3mm</option><option value="4">4mm</option></select>
     <label>Margen:</label>
-    <select id="margenSel">
-      <option value="0">Sin margen</option>
-      <option value="10">10 mm</option>
-      <option value="15" selected>15 mm</option>
-    </select>
-    <label>Color:</label>
-    <select id="colorPauta">
-      <option value="clasica" selected>Clásica</option>
-      <option value="suave">Suave</option>
-      <option value="alto">Alto contraste</option>
-    </select>
-    <label><input type="checkbox" id="showPauta" checked/> Mostrar pauta</label>
-    <button id="redraw">🔄 Redibujar</button>
+    <select id="margenSel"><option value="0">0</option><option value="10">10mm</option><option value="15" selected>15mm</option></select>
+    <label><input type="checkbox" id="showPauta" checked/> Pauta</label>
   </div>
   <div class="group">
-    <label>Letra:</label>
-    <select id="ghostSelect">
-      <optgroup label="Minúsculas"><option>a</option><option>b</option><option>c</option>…</optgroup>
-      <optgroup label="Mayúsculas"><option>A</option><option>B</option><option>C</option>…</optgroup>
-      <optgroup label="Opciones">
-        <option value="__custom__">Libre (texto)</option>
-        <option value="__none__">Ocultar guía</option>
-      </optgroup>
-    </select>
-    <input id="ghostText" type="text" placeholder="Escribe aquí…" style="display:none;width:12rem" />
-    <label>Tamaño:</label>
-    <input id="ghostSize" type="range" min="40" max="300" value="160" />
-    <label>Vía:</label>
-    <select id="viaIndex"><option value="1">1ª</option><option value="2" selected>2ª</option><option value="3">3ª</option></select>
-    <label><input type="checkbox" id="ghostShow" checked/> Mostrar</label>
-    <label><input type="checkbox" id="inlineWord" checked/> Palabra en línea</label>
-    <label><input type="checkbox" id="animateGuide" /> Trazos animados</label>
+    <label>Letra:</label><select id="ghostSelect"><option>a</option><option>b</option><option>A</option><option>B</option><option value="__custom__">Texto</option><option value="__none__">Ninguna</option></select>
+    <input id="ghostText" type="text" style="display:none;width:8rem" placeholder="Escribe..."/>
+    <label>Tam:</label><input id="ghostSize" type="range" min="40" max="300" value="160"/>
+    <label>Vía:</label><select id="viaIndex"><option value="1">1ª</option><option value="2" selected>2ª</option><option value="3">3ª</option></select>
+    <label><input type="checkbox" id="ghostShow" checked/> Guía</label>
+    <label><input type="checkbox" id="inlineWord" checked/> Palabra</label>
   </div>
   <div class="group">
-    <button id="zoomIn">＋</button><button id="zoomOut">－</button><button id="zoomReset">100%</button>
-    <button id="panHand">✋ Mano</button>
-    <button id="panLeft">⬅️</button><button id="panUp">⬆️</button><button id="panDown">⬇️</button><button id="panRight">➡️</button>
-    <button id="centerToMargin">📏 Ir a margen</button>
-  </div>
-  <div class="group">
-    <label><input type="checkbox" id="showSpiral" checked/> Mostrar anilla</label>
-    <label>Lado:</label>
-    <select id="spiralSide"><option value="left" selected>Izquierda</option><option value="right">Derecha</option></select>
+    <label><input type="checkbox" id="showSpiral" checked/> Anilla</label>
+    <label>Lado:</label><select id="spiralSide"><option value="left">Izq</option><option value="right" selected>Der</option></select>
   </div>
 </header>
 
@@ -138,65 +80,95 @@
 
 <script>
 (()=>{
-  const DPR = Math.max(1, window.devicePixelRatio||1);
-  const mm2px = mm => mm*96/25.4*DPR;
-  const px2css = px => (px/DPR)+'px';
-  const A4 = { w:mm2px(210), h:mm2px(297) };
-  const SPIRAL_STRIP_W_MM = 10;
-  const SPIRAL_W = mm2px(SPIRAL_STRIP_W_MM);
+const DPR=Math.max(1,window.devicePixelRatio||1);
+const mm2px=mm=>mm*96/25.4*DPR,px2css=px=>(px/DPR)+'px';
+const A4={w:mm2px(210),h:mm2px(297)},SPIRAL_W=mm2px(10);
 
-  const paper = document.getElementById('paper');
-  const pauta = document.getElementById('pautaCanvas');
-  const draw  = document.getElementById('drawCanvas');
-  const ghost = document.getElementById('ghostCanvas');
-  const spiral= document.getElementById('spiralCanvas');
-  const cvs=[pauta,draw,ghost];
+const paper=document.getElementById('paper');
+const pauta=document.getElementById('pautaCanvas');
+const draw=document.getElementById('drawCanvas');
+const ghost=document.getElementById('ghostCanvas');
+const spiral=document.getElementById('spiralCanvas');
+const cvs=[pauta,draw,ghost];
 
-  // === Estado y controles abreviados ===
-  const toolSel=document.getElementById('tool'), penSize=document.getElementById('penSize');
-  const stepSel=document.getElementById('pautaStep'), margenSel=document.getElementById('margenSel'), colorSel=document.getElementById('colorPauta');
-  const showPauta=document.getElementById('showPauta'), redrawBtn=document.getElementById('redraw');
-  const ghostSelect=document.getElementById('ghostSelect'), ghostText=document.getElementById('ghostText'), ghostSize=document.getElementById('ghostSize');
-  const ghostShow=document.getElementById('ghostShow'), inlineWord=document.getElementById('inlineWord'), animateGuide=document.getElementById('animateGuide');
-  const viaIndex=document.getElementById('viaIndex');
-  const showSpiral=document.getElementById('showSpiral'), spiralSide=document.getElementById('spiralSide');
-  const savePngBtn=document.getElementById('savePng'), printPdfBtn=document.getElementById('printPdf');
-  const clearBtn=document.getElementById('clear'), undoBtn=document.getElementById('undo'), redoBtn=document.getElementById('redo');
+const stepSel=document.getElementById('pautaStep'),margenSel=document.getElementById('margenSel'),showPauta=document.getElementById('showPauta');
+const ghostSelect=document.getElementById('ghostSelect'),ghostText=document.getElementById('ghostText'),ghostSize=document.getElementById('ghostSize'),ghostShow=document.getElementById('ghostShow'),inlineWord=document.getElementById('inlineWord'),viaIndex=document.getElementById('viaIndex');
+const showSpiral=document.getElementById('showSpiral'),spiralSide=document.getElementById('spiralSide');
+const toolSel=document.getElementById('tool'),penSize=document.getElementById('penSize');
+const undoBtn=document.getElementById('undo'),redoBtn=document.getElementById('redo'),clearBtn=document.getElementById('clear');
+const savePngBtn=document.getElementById('savePng'),printPdfBtn=document.getElementById('printPdf');
 
-  const view={scale:1,tx:0,ty:0,hand:false};
+function resizeA4(){
+  cvs.forEach(cv=>{cv.width=A4.w;cv.height=A4.h;cv.style.width=px2css(A4.w);cv.style.height=px2css(A4.h);});
+  paper.style.width=px2css(A4.w);paper.style.height=px2css(A4.h);
+  spiral.width=SPIRAL_W;spiral.height=A4.h;spiral.style.width=px2css(SPIRAL_W);spiral.style.height=px2css(A4.h);
+  spiral.style.left=(spiralSide.value==='left')?px2css(-SPIRAL_W):px2css(A4.w);
+}
 
-  // === Resize A4 + anilla ===
-  function resizeA4(){
-    cvs.forEach(cv=>{cv.width=A4.w;cv.height=A4.h;cv.style.width=px2css(A4.w);cv.style.height=px2css(A4.h);});
-    paper.style.width=px2css(A4.w); paper.style.height=px2css(A4.h);
-    spiral.width=SPIRAL_W; spiral.height=A4.h; spiral.style.width=px2css(SPIRAL_W); spiral.style.height=px2css(A4.h);
-    if(spiralSide.value==='left'){spiral.style.left=px2css(-SPIRAL_W);}else{spiral.style.left=px2css(A4.w);}
+function drawSpiralCanvas(){
+  const ctx=spiral.getContext('2d');ctx.clearRect(0,0,spiral.width,spiral.height);
+  if(!showSpiral.checked) return;
+  const holeR=mm2px(3.2),pitch=mm2px(18),stripW=mm2px(10),topPad=mm2px(12);
+  const xStrip=(spiralSide.value==='left')?(spiral.width-stripW):0;
+  const xCenter=(spiralSide.value==='left')?xStrip+stripW-holeR*0.9:xStrip+holeR*0.9;
+  ctx.fillStyle='#f5f5f5';ctx.fillRect(xStrip,0,stripW,spiral.height);
+  ctx.fillStyle='rgba(0,0,0,.06)';if(spiralSide.value==='left')ctx.fillRect(xStrip+stripW-2*DPR,0,2*DPR,spiral.height);else ctx.fillRect(xStrip,0,2*DPR,spiral.height);
+  ctx.fillStyle='#d1d5db';ctx.strokeStyle='#9ca3af';ctx.lineWidth=1*DPR;
+  for(let y=topPad;y<=spiral.height-topPad;y+=pitch){
+    ctx.beginPath();ctx.arc(xCenter,y,holeR,0,Math.PI*2);ctx.fill();ctx.stroke();
   }
+}
 
-  function drawSpiralCanvas(){
-    const ctx=spiral.getContext('2d'); ctx.clearRect(0,0,spiral.width,spiral.height);
-    if(!showSpiral.checked) return;
-    const holeR=mm2px(3.2), pitch=mm2px(18), stripW=mm2px(10), inset=0, topPad=mm2px(12);
-    const xStrip=(spiralSide.value==='left')?(spiral.width-stripW-inset):inset;
-    const xCenter=(spiralSide.value==='left')?xStrip+stripW-holeR*0.9:xStrip+holeR*0.9;
-    ctx.fillStyle='#f5f5f5';ctx.fillRect(xStrip,0,stripW,spiral.height);
-    ctx.fillStyle='rgba(0,0,0,.06)';
-    if(spiralSide.value==='left') ctx.fillRect(xStrip+stripW-2*DPR,0,2*DPR,spiral.height); else ctx.fillRect(xStrip,0,2*DPR,spiral.height);
-    ctx.fillStyle='#d1d5db'; ctx.strokeStyle='#9ca3af'; ctx.lineWidth=1*DPR;
-    for(let y=topPad;y<=spiral.height-topPad;y+=pitch){
-      ctx.beginPath();ctx.arc(xCenter,y,holeR,0,Math.PI*2);ctx.fill();ctx.stroke();
-      ctx.beginPath();const wireR=holeR*0.55;ctx.arc(xCenter+(spiralSide.value==='left'?-holeR*0.25:holeR*0.25),y,wireR,-Math.PI/2,Math.PI/2);ctx.strokeStyle='#6b7280';ctx.stroke();
-    }
+function drawPauta(){
+  const ctx=pauta.getContext('2d');ctx.clearRect(0,0,pauta.width,pauta.height);
+  const step=mm2px(parseFloat(stepSel.value)),top=20*DPR,period=step*4.6,marginPx=mm2px(parseFloat(margenSel.value));
+  pauta.dataset.topPad=String(top);pauta.dataset.step=String(step);pauta.dataset.period=String(period);pauta.dataset.margin=String(marginPx);
+  ctx.fillStyle='#fff';ctx.fillRect(0,0,pauta.width,pauta.height);
+  if(showPauta.checked){
+    let y=top;ctx.strokeStyle='#3b82f6';
+    while(y<A4.h-top){ctx.beginPath();ctx.moveTo(0,y);ctx.lineTo(A4.w,y);ctx.stroke();y+=step;}
+    if(marginPx>0){ctx.beginPath();ctx.moveTo(marginPx,0);ctx.lineTo(marginPx,A4.h);ctx.strokeStyle='green';ctx.stroke();}
   }
+}
 
-  function redrawAll(){ drawPauta(); drawGuide(); redrawDrawLayer(); drawSpiralCanvas(); }
+function currentGuideText(){
+  if(!ghostShow.checked) return ''; const sel=ghostSelect.value;
+  if(sel==='__custom__') return ghostText.value||''; if(sel==='__none__') return ''; return sel;
+}
+function firstBaseLineY(){const top=parseFloat(pauta.dataset.topPad||20*DPR);const step=parseFloat(pauta.dataset.step);return top+2*step;}
+function baseLineForGuide(){const step=parseFloat(pauta.dataset.step),period=parseFloat(pauta.dataset.period);const idx=parseInt(viaIndex.value);return firstBaseLineY()+(idx-1)*period;}
 
-  // === Pauta / Guía / Dibujo… (idénticos a lo que ya tienes) ===
-  // ⚠️ Para no desbordar aquí: mantén tus funciones drawPauta(), drawGuide(), etc. tal cual.
-  // Solo recuerda que ahora la anilla se pinta en drawSpiralCanvas() y no dentro de drawPauta().
+function drawGuide(){
+  const ctx=ghost.getContext('2d');ctx.clearRect(0,0,ghost.width,ghost.height);const txt=currentGuideText();if(!txt)return;
+  const fontPx=parseInt(ghostSize.value,10)*DPR;baseY=baseLineForGuide();ctx.font=`${fontPx}px "EscolarG"`;ctx.textBaseline='alphabetic';ctx.fillStyle='rgba(0,0,0,.3)';
+  let x=Math.max(8*DPR,parseFloat(pauta.dataset.margin)+8*DPR);
+  if(inlineWord.checked){for(const ch of txt){ctx.fillText(ch,x,baseY);x+=ctx.measureText(ch).width+fontPx*0.12;}}
+  else{const w=ctx.measureText(txt).width;ctx.fillText(txt,(A4.w-w)/2,baseY);}
+}
 
-  // === Init ===
-  resizeA4(); redrawAll();
+// Dibujo libre con historial
+const dctx=draw.getContext('2d');dctx.lineCap='round';dctx.lineJoin='round';let drawing=false,points=[];const history=[];let redoStack=[];
+function setComposite(){dctx.globalCompositeOperation=(toolSel.value==='eraser')?'destination-out':'source-over';}
+function startDraw(e){drawing=true;points=[{x:e.offsetX*DPR,y:e.offsetY*DPR}];dctx.save();setComposite();dctx.lineWidth=parseFloat(penSize.value)*DPR;dctx.strokeStyle='#111';}
+function moveDraw(e){if(!drawing)return;const p={x:e.offsetX*DPR,y:e.offsetY*DPR};const prev=points[points.length-1];points.push(p);dctx.beginPath();dctx.moveTo(prev.x,prev.y);dctx.lineTo(p.x,p.y);dctx.stroke();}
+function endDraw(){if(!drawing)return;history.push(points.slice());drawing=false;dctx.restore();}
+function redrawDrawLayer(){dctx.clearRect(0,0,draw.width,draw.height);dctx.strokeStyle='#111';history.forEach(st=>{dctx.beginPath();st.forEach((p,i)=>{if(i===0)dctx.moveTo(p.x,p.y);else dctx.lineTo(p.x,p.y);});dctx.stroke();});}
+function undo(){if(history.length){redoStack.push(history.pop());redrawDrawLayer();}}
+function redo(){if(redoStack.length){history.push(redoStack.pop());redrawDrawLayer();}}
+function clearDraw(){history.length=0;redoStack.length=0;redrawDrawLayer();}
+draw.addEventListener('pointerdown',startDraw);draw.addEventListener('pointermove',moveDraw);draw.addEventListener('pointerup',endDraw);
+
+function redrawAll(){drawPauta();drawGuide();redrawDrawLayer();drawSpiralCanvas();}
+
+// Exportar
+function composeToCanvas(){const off=document.createElement('canvas');off.width=A4.w;off.height=A4.h;const o=off.getContext('2d');o.fillStyle='#fff';o.fillRect(0,0,off.width,off.height);o.drawImage(pauta,0,0);o.drawImage(ghost,0,0);o.drawImage(draw,0,0);return off;}
+savePngBtn.onclick=()=>{const off=composeToCanvas();const a=document.createElement('a');a.href=off.toDataURL('image/png');a.download='pauta.png';a.click();};
+printPdfBtn.onclick=()=>{const off=composeToCanvas();const url=off.toDataURL('image/png');const w=window.open('');w.document.write(`<img src="${url}" style="width:210mm;height:297mm">`);w.print();};
+
+undoBtn.onclick=undo;redoBtn.onclick=redo;clearBtn.onclick=clearDraw;
+ghostSelect.onchange=()=>{ghostText.style.display=(ghostSelect.value==='__custom__')?'inline-block':'none';redrawAll();}
+[stepSel,margenSel,showPauta,ghostText,ghostSize,ghostShow,inlineWord,viaIndex,showSpiral,spiralSide].forEach(el=>el.addEventListener('input',redrawAll));
+resizeA4();redrawAll();
 })();
 </script>
 </body>
