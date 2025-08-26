@@ -5,6 +5,13 @@
 <meta name="viewport" content="width=device-width,initial-scale=1,viewport-fit=cover" />
 <title>Pauta Lamela — práctica de trazos</title>
 <style>
+  /* === Fuente escolar === */
+  @font-face {
+    font-family: 'EscolarG';
+    src: url('escolar_G.woff2') format('woff2');
+    font-display: swap;
+  }
+
   :root{
     --ink:#111; --panel:#fff; --border:#d1d5db; --bg:#f3f4f6;
     --sec:#3b82f6; --base:#ef4444; --margin:#10b981;
@@ -30,19 +37,22 @@
   button{border:1px solid var(--border);border-radius:.5rem;background:#fff;padding:.45rem .65rem;cursor:pointer}
   button:active{transform:translateY(1px)}
 
-  /* Zona de lienzos */
+  /* Zona de lienzos: hoja A4 justo debajo del header */
   main{
-    flex:1 1 auto;display:flex;justify-content:center;align-items:center;
+    flex:1 1 auto;display:flex;justify-content:center;align-items:flex-start;
     overflow:auto;padding:8px;
   }
-  /* Los 3 lienzos comparten tamaño y se transforman con zoom/pan en el dibujado */
-  canvas{position:absolute;inset:0;margin:auto;touch-action:none}
-  #pautaCanvas{
-    background:#fff;z-index:1;border:1px solid var(--border);border-radius:12px;
-    box-shadow:0 4px 16px rgba(0,0,0,.10);pointer-events:none;
+  .paper{
+    position:relative; /* tamaño CSS lo pone JS a A4 */
+    border:1px solid var(--border);
+    border-radius:12px;
+    background:#fff;
+    box-shadow:0 4px 16px rgba(0,0,0,.10);
   }
-  #drawCanvas{z-index:2;border-radius:12px}
-  #ghostCanvas{z-index:3;border-radius:12px;pointer-events:none}
+  canvas{position:absolute; top:0; left:0; touch-action:none; border-radius:12px}
+  #pautaCanvas{ z-index:1; pointer-events:none; }
+  #drawCanvas { z-index:2; }
+  #ghostCanvas{ z-index:3; pointer-events:none; }
 </style>
 </head>
 <body>
@@ -139,9 +149,11 @@
 </header>
 
 <main>
-  <canvas id="pautaCanvas"></canvas>
-  <canvas id="drawCanvas"></canvas>
-  <canvas id="ghostCanvas"></canvas>
+  <div id="paper" class="paper">
+    <canvas id="pautaCanvas"></canvas>
+    <canvas id="drawCanvas"></canvas>
+    <canvas id="ghostCanvas"></canvas>
+  </div>
 </main>
 
 <script>
@@ -152,16 +164,16 @@
   const px2css = px => (px/DPR)+'px';
   const A4 = { w:mm2px(210), h:mm2px(297) };
 
+  const paper = document.getElementById('paper');
   const pauta = document.getElementById('pautaCanvas');
   const draw  = document.getElementById('drawCanvas');
   const ghost = document.getElementById('ghostCanvas');
   const cvs=[pauta,draw,ghost];
 
   function resizeA4(){
-    cvs.forEach(cv=>{
-      cv.width=A4.w; cv.height=A4.h;
-      cv.style.width=px2css(A4.w); cv.style.height=px2css(A4.h);
-    });
+    cvs.forEach(cv=>{ cv.width=A4.w; cv.height=A4.h; });
+    paper.style.width  = px2css(A4.w);
+    paper.style.height = px2css(A4.h);
     redrawAll();
   }
   window.addEventListener('resize', resizeA4, {passive:true});
@@ -200,9 +212,7 @@
 
   // ====== Vista (zoom / pan) ======
   const view = { scale: 1, tx: 0, ty: 0, hand:false };
-  function applyView(ctx){
-    ctx.setTransform(view.scale,0,0,view.scale, view.tx, view.ty);
-  }
+  function applyView(ctx){ ctx.setTransform(view.scale,0,0,view.scale, view.tx, view.ty); }
   function screenToWorld(xCss, yCss){
     const x = xCss*DPR, y = yCss*DPR;
     return { x: (x - view.tx)/view.scale, y: (y - view.ty)/view.scale };
@@ -215,10 +225,7 @@
     view.ty += (before.y - after.y)*view.scale;
     redrawAll();
   }
-  function panBy(dxCss, dyCss){
-    view.tx += dxCss*DPR; view.ty += dyCss*DPR;
-    redrawAll();
-  }
+  function panBy(dxCss, dyCss){ view.tx += dxCss*DPR; view.ty += dyCss*DPR; redrawAll(); }
   zoomInBtn.onclick = ()=>zoomBy(1.15, window.innerWidth/2, window.innerHeight/2);
   zoomOutBtn.onclick= ()=>zoomBy(1/1.15, window.innerWidth/2, window.innerHeight/2);
   zoomResetBtn.onclick=()=>{ view.scale=1; view.tx=0; view.ty=0; redrawAll(); };
@@ -319,7 +326,8 @@
     applyView(ctx);
 
     const fontPx=parseInt(ghostSize.value,10)*DPR;
-    ctx.font = `normal ${fontPx}px "Comic Sans MS","Segoe Print","Bradley Hand",system-ui,sans-serif`;
+    // 💡 USO DE LA FUENTE ESCOLARG AQUÍ
+    ctx.font = `normal ${fontPx}px "EscolarG", "Comic Sans MS", "Segoe Print", system-ui, sans-serif`;
     ctx.textBaseline='alphabetic';
     ctx.fillStyle='rgba(17,24,39,.28)';
     ctx.strokeStyle='rgba(107,114,128,.6)';
@@ -337,7 +345,7 @@
       }
     }else{
       const total=ctx.measureText(txt).width;
-      const startX = A4.w/2 - total/2;
+      const startX = (A4.w/2) - total/2;
       ctx.fillText(txt, startX, baseY);
       ctx.strokeText(txt, startX, baseY);
     }
@@ -360,15 +368,12 @@
     if(!animateGuide.checked && animReq){ cancelAnimationFrame(animReq); animReq=null; redrawAll(); }
   });
 
-  // Botón: centrar vista al margen izquierdo
+  // Botón: centrar vista al margen izquierdo (útil si has hecho pan/zoom)
   centerToMarginBtn.onclick = ()=>{
-    // Llevamos el margen visible cerca del centro de la pantalla
     const mx = marginXpx() + 60*DPR;
-    // objetivo en mundo -> queremos que esté centrado
     const targetWorld = {x: mx, y: firstBaseLineY()};
     const centerCss = {x: window.innerWidth/2, y: window.innerHeight/2};
     const before = screenToWorld(centerCss.x, centerCss.y);
-    // ajustamos tx/ty para que before -> target
     view.tx += (before.x - targetWorld.x) * view.scale;
     view.ty += (before.y - targetWorld.y) * view.scale;
     redrawAll();
@@ -490,11 +495,11 @@
       }
     }
 
-    // --- Guía (sin transform) ---
+    // --- Guía (sin transform) — usa EscolarG también en export ---
     const fontPx=parseInt(ghostSize.value,10)*DPR;
     const txt=currentGuideText();
     if(txt){
-      o.font = `normal ${fontPx}px "Comic Sans MS","Segoe Print","Bradley Hand",system-ui,sans-serif`;
+      o.font = `normal ${fontPx}px "EscolarG", "Comic Sans MS", "Segoe Print", system-ui, sans-serif`;
       o.textBaseline='alphabetic';
       o.fillStyle='rgba(17,24,39,.28)';
       o.strokeStyle='rgba(107,114,128,.6)';
@@ -594,15 +599,16 @@
   undoBtn.onclick  = ()=>undo();
   redoBtn.onclick  = ()=>redo();
 
-  // Pan con "mano" (arrastrar lienzo)
+  // Pan con "mano" (arrastrar lienzo en draw)
+  let draggingView=false, lastPan={x:0,y:0};
   draw.addEventListener('pointerdown', e=>{ if(view.hand){ e.preventDefault(); } }, {passive:false});
 
   // ====== Init ======
   resizeA4();
   ghostSelect.value='a'; ghostShow.checked=true; inlineWord.checked=true;
+  // Asegurar que la fuente esté lista antes del primer trazado de guía
+  document.fonts && document.fonts.ready.then(()=>{ redrawAll(); });
   setComposite();
-
-  // Animación off por defecto
   animateGuide.checked=false;
 })();
 </script>
