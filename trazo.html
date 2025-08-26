@@ -83,8 +83,8 @@
     <label>Paso:</label>
     <select id="pautaStep">
       <option value="2.5">2.5 mm</option>
-      <option value="3" selected>3 mm</option>
-      <option value="4">4 mm</option>
+      <option value="3">3 mm</option>
+      <option value="4" selected>4 mm</option><!-- ⬅️ por defecto 4mm -->
     </select>
     <label>Margen:</label>
     <select id="margenSel">
@@ -94,8 +94,8 @@
     </select>
     <label>Color:</label>
     <select id="colorPauta">
-      <option value="clasica" selected>Clásica</option>
-      <option value="suave">Suave</option>
+      <option value="clasica">Clásica</option>
+      <option value="suave" selected>Suave</option><!-- ⬅️ por defecto Suave -->
       <option value="alto">Alto contraste</option>
     </select>
     <label><input type="checkbox" id="showPauta" checked/> Mostrar pauta</label>
@@ -133,7 +133,7 @@
     <label>Vía:</label>
     <select id="viaIndex">
       <option value="1">1ª</option>
-      <option value="2" selected>2ª</option>
+      <option value="2" selected>2ª</option><!-- ⬅️ por defecto 2ª para no pisar cabecera -->
       <option value="3">3ª</option>
       <option value="4">4ª</option>
       <option value="5">5ª</option>
@@ -158,7 +158,7 @@
     <canvas id="spiralCanvas"></canvas><!-- anilla (fuera) -->
     <canvas id="pautaCanvas"></canvas><!-- hoja A4 -->
     <canvas id="drawCanvas"></canvas><!-- trazos -->
-    <canvas id="ghostCanvas"></canvas><!-- guía de letras -->
+    <canvas id="ghostCanvas"></canvas><!-- guía de letras + cabecera -->
   </div>
 </main>
 
@@ -170,6 +170,7 @@
   const px2css = px => (px/DPR)+'px';
   const A4 = { w:mm2px(210), h:mm2px(297) };
   const SPIRAL_W = mm2px(10); // ancho del canvas de anilla
+  const HEADER_TEXT = "Granada  —  22 de marzo de 2025"; // ⬅️ cabecera fija 1ª vía
 
   // ====== Elementos ======
   const paper = document.getElementById('paper');
@@ -208,14 +209,9 @@
   function palette(mode){
     if(mode==='suave') return {base:'#f87171', sec:'#93c5fd', margin:'#22c55e'};
     if(mode==='alto')  return {base:'#dc2626', sec:'#1d4ed8', margin:'#16a34a'};
-    // clásica (por defecto) — usa variables CSS como fallback
-    return {
-      base: getCSS('--base')  || '#ef4444', // base roja
-      sec:  getCSS('--sec')   || '#3b82f6', // líneas azules
-      margin:getCSS('--margin')|| '#10b981'
-    };
+    // clásica por defecto
+    return { base:'#ef4444', sec:'#3b82f6', margin:'#10b981' };
   }
-  function getCSS(v){ return getComputedStyle(document.documentElement).getPropertyValue(v).trim(); }
 
   // ====== Tamaños y colocación ======
   function resizeA4(){
@@ -240,17 +236,16 @@
     ctx.setTransform(1,0,0,1,0,0);
     ctx.clearRect(0,0,pauta.width,pauta.height);
 
-    // fondo blanco siempre (hoja visible aunque ocultes pautas)
+    // fondo blanco
     ctx.fillStyle='#fff'; ctx.fillRect(0,0,pauta.width,pauta.height);
 
-    // parámetros de pauta
     const step = mm2px(parseFloat(stepSel.value));
     const top  = 20*DPR;
-    const period = step*4.6; // patrón Lamela (ascendente+techo+base+desc/espacio)
+    const period = step*4.6;
     const marginPx = mm2px(parseFloat(margenSel.value)||0);
     const {base,sec,margin} = palette(colorSel.value);
 
-    // guardar en dataset para guías
+    // guarda para la guía
     pauta.dataset.topPad = String(top);
     pauta.dataset.step   = String(step);
     pauta.dataset.period = String(period);
@@ -258,20 +253,14 @@
 
     if(!showPauta.checked) return;
 
-    // líneas horizontales
     let y=top;
     while(y<pauta.height-top){
-      // ascendente (azul)
-      strokeH(ctx,y,1*DPR,sec); y+=step;
-      // techo (azul)
-      strokeH(ctx,y,1*DPR,sec); y+=step;
-      // base (roja)
-      strokeH(ctx,y,1.5*DPR,base); y+=step;
-      // descendente (azul) + espacio
-      strokeH(ctx,y,1*DPR,sec); y+=step*1.6;
+      strokeH(ctx,y,1*DPR,sec); y+=step;        // ascendente
+      strokeH(ctx,y,1*DPR,sec); y+=step;        // techo
+      strokeH(ctx,y,1.5*DPR,base); y+=step;     // base (roja)
+      strokeH(ctx,y,1*DPR,sec); y+=step*1.6;    // descendente + espacio
     }
 
-    // margen vertical
     if(marginPx>0){
       ctx.beginPath(); ctx.moveTo(marginPx,0); ctx.lineTo(marginPx,pauta.height);
       ctx.lineWidth=2*DPR; ctx.strokeStyle=margin; ctx.stroke();
@@ -279,14 +268,14 @@
   }
   function strokeH(ctx,y,w,c){ ctx.beginPath(); ctx.moveTo(0,y); ctx.lineTo(A4.w,y); ctx.lineWidth=w; ctx.strokeStyle=c; ctx.stroke(); }
 
-  // ====== Anilla (fuera de la hoja, en su propio canvas) ======
+  // ====== Anilla (fuera de la hoja) ======
   function drawSpiralCanvas(){
     const ctx=spiral.getContext('2d');
     ctx.setTransform(1,0,0,1,0,0);
     ctx.clearRect(0,0,spiral.width,spiral.height);
     if(!showSpiral.checked) return;
 
-    const side = spiralSide.value; // 'left' | 'right'
+    const side = spiralSide.value;
     const holeR   = mm2px(3.2);
     const pitch   = mm2px(18);
     const stripW  = mm2px(10);
@@ -295,22 +284,19 @@
     const xStrip = (side==='left') ? (spiral.width - stripW) : 0;
     const xCenter= (side==='left') ? (xStrip + stripW - holeR*0.9) : (xStrip + holeR*0.9);
 
-    // franja perforada
     ctx.fillStyle='#f5f5f5';
     ctx.fillRect(xStrip, 0, stripW, spiral.height);
 
-    // sombra en el borde que pega a la hoja
     ctx.fillStyle='rgba(0,0,0,.06)';
     if(side==='left') ctx.fillRect(xStrip+stripW-2*DPR,0,2*DPR,spiral.height);
     else ctx.fillRect(xStrip,0,2*DPR,spiral.height);
 
-    // agujeros + “alambre”
     ctx.fillStyle='#d1d5db';
     ctx.strokeStyle='#9ca3af';
     ctx.lineWidth=1*DPR;
     for(let y=topPad; y<=spiral.height-topPad; y+=pitch){
       ctx.beginPath(); ctx.arc(xCenter,y,holeR,0,Math.PI*2); ctx.fill(); ctx.stroke();
-      // alambre pequeño
+      // alambre
       ctx.beginPath();
       const wireR=holeR*0.55;
       ctx.arc(xCenter + (side==='left'? -holeR*0.25 : holeR*0.25), y, wireR, -Math.PI/2, Math.PI/2);
@@ -318,7 +304,7 @@
     }
   }
 
-  // ====== Guía (texto sobre pauta) ======
+  // ====== Guía (cabecera fija + texto de práctica) ======
   function currentGuideText(){
     const sel=ghostSelect.value;
     if(!ghostShow.checked || sel==='__none__') return '';
@@ -333,39 +319,59 @@
   function baseLineForGuide(){
     const step   = parseFloat(pauta.dataset.step   || mm2px(parseFloat(stepSel.value)));
     const period = parseFloat(pauta.dataset.period || step*4.6);
-    const idx    = parseInt(viaIndex.value || '1', 10); // 1 = 1ª vía
+    const idx    = parseInt(viaIndex.value || '2', 10); // por defecto 2ª
     return firstBaseLineY() + (idx - 1) * period;
   }
   function marginXpx(){ return parseFloat(pauta.dataset.margin || mm2px(parseFloat(margenSel.value)||0)); }
+
+  // Cabecera fija en 1ª vía
+  function drawHeaderLine(ctx){
+    const fontPx=Math.max(48*DPR, parseInt(ghostSize.value,10)*0.55*DPR); // un poco más pequeña que la guía
+    ctx.save();
+    ctx.font = `normal ${fontPx}px "EscolarG", system-ui, sans-serif`;
+    ctx.textBaseline='alphabetic';
+    ctx.fillStyle='rgba(17,24,39,.40)'; // algo más visible que la guía
+    ctx.strokeStyle='rgba(107,114,128,.55)';
+    ctx.lineWidth=Math.max(1,Math.round(fontPx*0.06));
+    const baseY = firstBaseLineY();
+    let x = Math.max(8*DPR, marginXpx() + 8*DPR);
+    // Texto único “Granada — 22 de marzo de 2025”
+    ctx.fillText(HEADER_TEXT, x, baseY);
+    ctx.strokeText(HEADER_TEXT, x, baseY);
+    ctx.restore();
+  }
 
   function drawGuide(){
     const ctx=ghost.getContext('2d');
     ctx.setTransform(1,0,0,1,0,0);
     ctx.clearRect(0,0,ghost.width,ghost.height);
+
+    // 1) Cabecera fija en la 1ª vía
+    drawHeaderLine(ctx);
+
+    // 2) Texto de práctica (en la vía seleccionada, p. ej. 2ª)
     const txt=currentGuideText(); if(!txt) return;
 
     const fontPx=parseInt(ghostSize.value,10)*DPR;
-    // 💡 Aquí se usa la fuente escolar_G.woff2
     ctx.font = `normal ${fontPx}px "EscolarG", system-ui, sans-serif`;
     ctx.textBaseline='alphabetic';
-    ctx.fillStyle='rgba(17,24,39,.28)'; // relleno suave
-    ctx.strokeStyle='rgba(107,114,128,.6)'; // contorno
+    ctx.fillStyle='rgba(17,24,39,.28)';
+    ctx.strokeStyle='rgba(107,114,128,.6)';
     ctx.lineWidth=Math.max(1,Math.round(fontPx*0.06));
 
     const baseY=baseLineForGuide();
-    let x = Math.max(8*DPR, marginXpx() + 8*DPR); // pegado al margen con algo de aire
+    let x = Math.max(8*DPR, marginXpx() + 8*DPR);
 
     if(inlineWord.checked){
       for(const ch of txt){
         ctx.fillText(ch, x, baseY);
         ctx.strokeText(ch, x, baseY);
-        x += ctx.measureText(ch).width + fontPx*0.12; // tracking leve
+        x += ctx.measureText(ch).width + fontPx*0.12;
       }
     }else{
       const total=ctx.measureText(txt).width;
-      const startX = (A4.w/2) - total/2;
-      ctx.fillText(txt, startX, baseY);
-      ctx.strokeText(txt, startX, baseY);
+      ctx.fillText(txt, (A4.w-total)/2, baseY);
+      ctx.strokeText(txt, (A4.w-total)/2, baseY);
     }
   }
 
@@ -387,7 +393,6 @@
     dctx.save(); setComposite();
     dctx.lineWidth=parseFloat(penSize.value)*DPR;
     dctx.strokeStyle='#111';
-    // punto inicial (toque)
     dctx.beginPath(); dctx.arc(points[0].x,points[0].y,dctx.lineWidth/2,0,Math.PI*2); dctx.fill();
   }
   function moveDraw(e){
@@ -449,7 +454,7 @@
   });
   toolSel.addEventListener('change', setComposite);
 
-  // ====== Exportar ======
+  // ====== Exportar (incluye cabecera fija, guía y trazos; NO la anilla) ======
   function composeToCanvas(){
     const off=document.createElement('canvas'); off.width=A4.w; off.height=A4.h;
     const o=off.getContext('2d');
@@ -463,7 +468,6 @@
       const top   = 20*DPR;
       const {base, sec, margin} = palette(colorSel.value);
       const marginPx = mm2px(parseFloat(margenSel.value)||0);
-
       let y=top;
       while(y<A4.h-top){
         strokeH(o,y,1*DPR,sec); y+=step;        // ascendente
@@ -477,6 +481,23 @@
       }
     }
 
+    // Cabecera fija en 1ª vía
+    (function drawHeaderToExport(ctx){
+      const step=mm2px(parseFloat(stepSel.value));
+      const baseY = 20*DPR + 2*step; // 1ª vía
+      const fontPx=Math.max(48*DPR, parseInt(ghostSize.value,10)*0.55*DPR);
+      ctx.save();
+      ctx.font = `normal ${fontPx}px "EscolarG", system-ui, sans-serif`;
+      ctx.textBaseline='alphabetic';
+      ctx.fillStyle='rgba(17,24,39,.40)';
+      ctx.strokeStyle='rgba(107,114,128,.55)';
+      ctx.lineWidth=Math.max(1,Math.round(fontPx*0.06));
+      let x = Math.max(8*DPR, mm2px(parseFloat(margenSel.value)||0) + 8*DPR);
+      ctx.fillText(HEADER_TEXT, x, baseY);
+      ctx.strokeText(HEADER_TEXT, x, baseY);
+      ctx.restore();
+    })(o);
+
     // Guía (sin transform) — usa EscolarG
     const fontPx=parseInt(ghostSize.value,10)*DPR;
     const txt=currentGuideText();
@@ -487,7 +508,7 @@
       o.strokeStyle='rgba(107,114,128,.6)';
       o.lineWidth=Math.max(1,Math.round(fontPx*0.06));
       const step=mm2px(parseFloat(stepSel.value)), period=step*4.6;
-      const baseY = 20*DPR + 2*step + (parseInt(viaIndex.value||'1',10)-1)*period;
+      const baseY = 20*DPR + 2*step + (parseInt(viaIndex.value||'2',10)-1)*period;
       let x = Math.max(8*DPR, mm2px(parseFloat(margenSel.value)||0) + 8*DPR);
       if(inlineWord.checked){
         for(const ch of txt){
@@ -581,9 +602,8 @@
   redoBtn.onclick  = ()=>redo();
 
   // ====== Init ======
+  // (HTML ya viene con 4mm y "suave" seleccionados)
   resizeA4();
-  showPauta.checked = true;
-  viaIndex.value = '2';
   setComposite();
 
   // Asegurar que la fuente está lista antes de la primera guía
