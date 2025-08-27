@@ -10,7 +10,6 @@
 <link rel="icon" href='data:image/svg+xml,<svg xmlns="http://www.w3.org/2000/svg"/>'>
 
 <style>
-  /* === Fuente escolar === */
   @font-face{
     font-family: 'EscolarG';
     src: url('escolar_G.woff2') format('woff2');
@@ -30,7 +29,7 @@
     min-height:100vh;display:flex;flex-direction:column;
   }
 
-  /* ===== Toolbar estilo app ===== */
+  /* Toolbar tipo app */
   header.toolbar{
     position:sticky; top:8px; z-index:10;
     margin:8px auto; max-width:1200px; width:calc(100% - 16px);
@@ -43,35 +42,30 @@
   }
   header.toolbar::-webkit-scrollbar{height:8px}
   header.toolbar::-webkit-scrollbar-thumb{background:#d1d5db;border-radius:999px}
-
   .tgroup{display:flex;align-items:center;gap:.5rem;position:relative}
   .tgroup+.tgroup{margin-left:.25rem}
   .tgroup+.tgroup::before{
-    content:"";position:absolute;left:-.375rem;top:6px;bottom:6px;
-    width:1px;background:linear-gradient(to bottom,transparent,#e5e7eb,transparent);
+    content:"";position:absolute;left:-.375rem;top:6px;bottom:6px;width:1px;
+    background:linear-gradient(to bottom,transparent,#e5e7eb,transparent);
   }
   label{font-size:.85rem;color:#374151;white-space:nowrap}
   select,input[type="text"]{
-    border:1px solid var(--pill-border);border-radius:999px;
-    padding:.35rem .65rem;background:var(--pill);font-size:.9rem;outline:none;
+    border:1px solid var(--pill-border);border-radius:999px;padding:.35rem .65rem;background:var(--pill);font-size:.9rem;outline:none;
   }
   input[type="range"]{width:120px}
   button{
-    border:1px solid var(--pill-border);border-radius:999px;
-    background:var(--pill);padding:.45rem .7rem;cursor:pointer;
-    transition:background .15s ease, transform .02s ease;
+    border:1px solid var(--pill-border);border-radius:999px;background:var(--pill);
+    padding:.45rem .7rem;cursor:pointer;transition:background .15s ease, transform .02s ease;
   }
-  button:hover{background:var(--pill-hover)}
-  button:active{transform:translateY(1px)}
+  button:hover{background:var(--pill-hover)} button:active{transform:translateY(1px)}
   .icon{padding:.45rem .6rem;min-width:2.2rem}
 
-  /* Lienzo / papel */
+  /* Papel: NO usamos transform CSS; el zoom es de render */
   main{flex:1 1 auto;display:flex;justify-content:center;align-items:flex-start;overflow:auto;padding:8px}
   .paper{
     position:relative;border:1px solid var(--border);border-radius:12px;
     background:#fff;box-shadow:0 4px 16px rgba(0,0,0,.1);
-    /* OJO: SIN transform CSS. Zoom/pan se hace en el dibujo */
-    touch-action:none; /* pan controlado */
+    touch-action:none;
   }
   canvas{position:absolute;top:0;left:0;touch-action:none}
   #spiralCanvas{z-index:0;pointer-events:none}
@@ -83,14 +77,12 @@
 <body>
 
 <header class="toolbar" role="toolbar" aria-label="Barra de herramientas">
-  <!-- Archivo -->
   <div class="tgroup" aria-label="Archivo">
     <button id="savePng"  class="icon" title="Guardar PNG">💾</button>
     <button id="printPdf" class="icon" title="Imprimir / PDF">🖨️</button>
     <button id="clear"    class="icon" title="Limpiar">🗑️</button>
   </div>
 
-  <!-- Edición -->
   <div class="tgroup" aria-label="Edición">
     <label>Herramienta</label>
     <select id="tool">
@@ -103,7 +95,6 @@
     <button id="redo" class="icon" title="Rehacer">↷</button>
   </div>
 
-  <!-- Pauta -->
   <div class="tgroup" aria-label="Pauta">
     <label>Paso</label>
     <select id="pautaStep">
@@ -128,7 +119,6 @@
     <button id="redraw" class="icon" title="Redibujar">🔄</button>
   </div>
 
-  <!-- Guía -->
   <div class="tgroup" aria-label="Guía">
     <label>Letra</label>
     <select id="ghostSelect">
@@ -167,7 +157,6 @@
     <label><input type="checkbox" id="inlineWord" checked/> En línea</label>
   </div>
 
-  <!-- Anilla -->
   <div class="tgroup" aria-label="Anilla">
     <label><input type="checkbox" id="showSpiral" checked/> Anilla</label>
     <label>Lado</label>
@@ -177,7 +166,6 @@
     </select>
   </div>
 
-  <!-- Vista (zoom real) -->
   <div class="tgroup" aria-label="Vista">
     <button id="zoomIn" class="icon" title="Acercar">＋</button>
     <button id="zoomOut" class="icon" title="Alejar">－</button>
@@ -197,33 +185,31 @@
 
 <script>
 (()=>{
-  // ===== Utilidades y constantes =====
+  // ===== Utilidades =====
   const DPR=Math.max(1,window.devicePixelRatio||1);
   const mm2px=mm=>mm*96/25.4*DPR, px2css=px=>(px/DPR)+'px';
   const A4={w:mm2px(210),h:mm2px(297)};
   const SPIRAL_W=mm2px(10);
 
-  // Fecha automática
-  function formatTodayEs(){return new Intl.DateTimeFormat('es-ES',{day:'numeric',month:'long',year:'numeric'}).format(new Date());}
-  function getHeaderText(){return `Granada — ${formatTodayEs()}`;}
+  // Fecha
+  const formatTodayEs=()=>new Intl.DateTimeFormat('es-ES',{day:'numeric',month:'long',year:'numeric'}).format(new Date());
+  const getHeaderText=()=>`Granada — ${formatTodayEs()}`;
 
-  // Fuente escolar cargada antes de dibujar/exportar
+  // Fuente
   let escolarReady=null;
   function waitEscolar(){
     if(!escolarReady){
       if(document.fonts && document.fonts.load){
         escolarReady=Promise.all([document.fonts.load('16px "EscolarG"'), document.fonts.ready]).catch(()=>{});
-      }else{
-        escolarReady=new Promise(r=>setTimeout(r,200));
-      }
+      }else escolarReady=new Promise(r=>setTimeout(r,200));
     }
     return escolarReady;
   }
 
-  // Elementos
+  // DOM
   const paper=document.getElementById('paper');
   const pauta=document.getElementById('pautaCanvas');
-  const draw=document.getElementById('drawCanvas');
+  const draw =document.getElementById('drawCanvas');
   const ghost=document.getElementById('ghostCanvas');
   const spiral=document.getElementById('spiralCanvas');
   const cvs=[pauta,draw,ghost,spiral];
@@ -234,14 +220,18 @@
   const colorSel=document.getElementById('colorPauta');
   const showPauta=document.getElementById('showPauta');
   const showGrid=document.getElementById('showGrid');
+  const redrawBtn=document.getElementById('redraw');
+
   const ghostSelect=document.getElementById('ghostSelect');
   const ghostText=document.getElementById('ghostText');
   const ghostSize=document.getElementById('ghostSize');
   const ghostShow=document.getElementById('ghostShow');
   const inlineWord=document.getElementById('inlineWord');
   const viaIndex=document.getElementById('viaIndex');
+
   const showSpiral=document.getElementById('showSpiral');
   const spiralSide=document.getElementById('spiralSide');
+
   const toolSel=document.getElementById('tool');
   const penSize=document.getElementById('penSize');
   const undoBtn=document.getElementById('undo');
@@ -249,6 +239,7 @@
   const clearBtn=document.getElementById('clear');
   const savePngBtn=document.getElementById('savePng');
   const printPdfBtn=document.getElementById('printPdf');
+
   const zoomInBtn=document.getElementById('zoomIn');
   const zoomOutBtn=document.getElementById('zoomOut');
   const zoomResetBtn=document.getElementById('zoomReset');
@@ -261,40 +252,98 @@
     return {base:'#ef4444', sec:'#3b82f6', margin:'#10b981'};
   }
 
-  // ===== Estado de vista (zoom real) =====
-  let viewScale=1;           // 0.3 .. 4
-  let viewOffsetX=0, viewOffsetY=0; // en coordenadas documento (px del A4)
+  // ===== Vista (zoom/pan reales) =====
+  let viewScale=1, viewOffsetX=0, viewOffsetY=0; // coords documento
 
-  // Tamaño y colocación
-  function resizeA4(){
-    cvs.forEach(cv=>{ cv.width=A4.w; cv.height=A4.h; cv.style.width=px2css(A4.w); cv.style.height=px2css(A4.h); });
-    paper.style.width=px2css(A4.w);
-    paper.style.height=px2css(A4.h);
-
-    // anilla fuera de la hoja (posición física; el dibujo de la anilla se transformará con la vista)
-    spiral.style.left=(spiralSide.value==='left')?px2css(-SPIRAL_W):px2css(A4.w);
-    spiral.width=SPIRAL_W; spiral.height=A4.h;
-    spiral.style.width=px2css(SPIRAL_W); spiral.style.height=px2css(A4.h);
-  }
-
-  // Helpers pauta
-  function strokeH(ctx,y,w,c){ctx.beginPath();ctx.moveTo(0,y);ctx.lineTo(A4.w,y);ctx.lineWidth=w;ctx.strokeStyle=c;ctx.stroke();}
-  function strokeV(ctx,x,w,c){ctx.beginPath();ctx.moveTo(x,0);ctx.lineTo(x,A4.h);ctx.lineWidth=w;ctx.strokeStyle=c;ctx.stroke();}
-
-  // Dibuja en un ctx aplicando la vista actual (zoom/pan reales)
   function withView(ctx, drawFn){
     ctx.save();
-    // Transformación: primero escalar, luego trasladar el origen en -offset (ojo al orden)
-    // setTransform(a, b, c, d, e, f) = [ a c e ; b d f ; 0 0 1 ]
     ctx.setTransform(viewScale,0,0,viewScale, -viewOffsetX*viewScale, -viewOffsetY*viewScale);
     drawFn(ctx);
     ctx.restore();
   }
 
-  // Pauta + cuadrícula (en coords documento)
+  function clamp(v, a, b){ return Math.min(b, Math.max(a, v)); }
+  function applyViewRedraw(){ drawPauta(); drawGuide(); redrawDrawLayer(); drawSpiralCanvas(); }
+
+  function zoomBy(factor, focusDocX=A4.w/2, focusDocY=A4.h/2){
+    const old=viewScale;
+    const next=clamp(old*factor, 0.3, 4);
+    if(next===old) return;
+    const screenX=(focusDocX - viewOffsetX) * old;
+    const screenY=(focusDocY - viewOffsetY) * old;
+    viewScale=next;
+    viewOffsetX = focusDocX - screenX / viewScale;
+    viewOffsetY = focusDocY - screenY / viewScale;
+    applyViewRedraw();
+  }
+
+  zoomInBtn.onclick = ()=> zoomBy(1.15);
+  zoomOutBtn.onclick= ()=> zoomBy(1/1.15);
+  zoomResetBtn.onclick=()=>{ viewScale=1; viewOffsetX=0; viewOffsetY=0; applyViewRedraw(); };
+
+  // Pan
+  let panning=false, panStart={x:0,y:0}, startOff={x:0,y:0};
+  paper.addEventListener('pointerdown', e=>{
+    if(!panMode.checked) return;
+    panning=true; panStart={x:e.clientX,y:e.clientY}; startOff={x:viewOffsetX,y:viewOffsetY};
+    paper.setPointerCapture?.(e.pointerId);
+    e.preventDefault();
+  });
+  paper.addEventListener('pointermove', e=>{
+    if(!panning) return;
+    const dx=(e.clientX-panStart.x)/viewScale;
+    const dy=(e.clientY-panStart.y)/viewScale;
+    viewOffsetX=startOff.x-dx; viewOffsetY=startOff.y-dy;
+    applyViewRedraw();
+  });
+  const endPan=e=>{ if(!panning) return; panning=false; try{paper.releasePointerCapture(e.pointerId);}catch{} };
+  paper.addEventListener('pointerup', endPan);
+  paper.addEventListener('pointercancel', endPan);
+  paper.addEventListener('pointerleave', endPan);
+
+  // Rueda con Ctrl: zoom al cursor
+  document.addEventListener('wheel', e=>{
+    if(!e.ctrlKey) return;
+    e.preventDefault();
+    const r=pauta.getBoundingClientRect();
+    const xCanvas=(e.clientX-r.left)*(pauta.width/r.width);
+    const yCanvas=(e.clientY-r.top) *(pauta.height/r.height);
+    const focusDocX = xCanvas / viewScale + viewOffsetX;
+    const focusDocY = yCanvas / viewScale + viewOffsetY;
+    zoomBy(e.deltaY>0 ? 1/1.08 : 1.08, focusDocX, focusDocY);
+  }, {passive:false});
+
+  // ===== Tamaño papeles =====
+  function resizeA4(){
+    [pauta,draw,ghost].forEach(cv=>{
+      cv.width=A4.w; cv.height=A4.h;
+      cv.style.width=px2css(A4.w); cv.style.height=px2css(A4.h);
+    });
+    paper.style.width=px2css(A4.w);
+    paper.style.height=px2css(A4.h);
+
+    spiral.width=SPIRAL_W; spiral.height=A4.h;
+    spiral.style.width=px2css(SPIRAL_W); spiral.style.height=px2css(A4.h);
+    spiral.style.left=(spiralSide.value==='left')?px2css(-SPIRAL_W):px2css(A4.w);
+  }
+
+  // ===== Pauta + cuadrícula =====
+  function strokeH(ctx,y,w,c){ ctx.beginPath(); ctx.moveTo(0,y); ctx.lineTo(A4.w,y); ctx.lineWidth=w; ctx.strokeStyle=c; ctx.stroke(); }
+  function strokeV(ctx,x,w,c){ ctx.beginPath(); ctx.moveTo(x,0); ctx.lineTo(x,A4.h); ctx.lineWidth=w; ctx.strokeStyle=c; ctx.stroke(); }
+
+  function drawGridVertical(ctx, step, marginPx, secColor){
+    if(!showGrid.checked) return;
+    ctx.save();
+    ctx.globalAlpha=0.15;
+    ctx.lineWidth=Math.max(0.75*DPR,0.5*DPR);
+    let x=Math.max(0,marginPx);
+    while(x<A4.w-1){ strokeV(ctx,x,ctx.lineWidth,secColor); x+=step; }
+    ctx.restore();
+  }
+
   function drawPauta(){
     const ctx=pauta.getContext('2d');
-    ctx.setTransform(1,0,0,1,0,0); // limpiar sin vista
+    ctx.setTransform(1,0,0,1,0,0);
     ctx.clearRect(0,0,pauta.width,pauta.height);
     ctx.fillStyle='#fff'; ctx.fillRect(0,0,pauta.width,pauta.height);
 
@@ -305,32 +354,23 @@
       const marginPx=mm2px(parseFloat(margenSel.value)||0);
       const {base,sec,margin}=palette(colorSel.value);
 
-      // datos para guía
       pauta.dataset.topPad=String(top);
       pauta.dataset.step=String(step);
       pauta.dataset.period=String(period);
       pauta.dataset.margin=String(marginPx);
 
-      // cuadrícula primero
-      if(showGrid.checked){
-        cv.save();
-        cv.globalAlpha=0.15;
-        cv.lineWidth=Math.max(0.75*DPR,0.5*DPR);
-        let x=Math.max(0,marginPx);
-        while(x<A4.w-1){ strokeV(cv,x,cv.lineWidth,sec); x+=step; }
-        cv.restore();
-      }
+      // cuadrícula
+      drawGridVertical(cv, step, marginPx, sec);
 
       if(showPauta.checked){
         let y=top;
         while(y<pauta.height-top){
-          strokeH(cv,y,1*DPR,sec); y+=step;        // ascendente
-          strokeH(cv,y,1*DPR,sec); y+=step;        // techo
-          strokeH(cv,y,1.5*DPR,base); y+=step;     // base (roja)
-          strokeH(cv,y,1*DPR,sec); y+=step*1.6;    // descendente + espacio
+          strokeH(cv,y,1*DPR,sec); y+=step;
+          strokeH(cv,y,1*DPR,sec); y+=step;
+          strokeH(cv,y,1.5*DPR,base); y+=step;
+          strokeH(cv,y,1*DPR,sec); y+=step*1.6;
         }
       }
-      // margen
       if(marginPx>0){
         cv.beginPath(); cv.moveTo(marginPx,0); cv.lineTo(marginPx,pauta.height);
         cv.lineWidth=2*DPR; cv.strokeStyle=margin; cv.stroke();
@@ -338,7 +378,7 @@
     });
   }
 
-  // Anilla (fuera de la hoja; dibujo con vista para que acompañe al pan/zoom)
+  // ===== Anilla (acompaña a la vista) =====
   function drawSpiralCanvas(){
     const ctx=spiral.getContext('2d');
     ctx.setTransform(1,0,0,1,0,0);
@@ -348,34 +388,16 @@
     withView(ctx, (cv)=>{
       const side=spiralSide.value;
       const holeR=mm2px(3.2), pitch=mm2px(18), stripW=mm2px(10), topPad=mm2px(12);
-
-      const xStrip=(side==='left')?(0):(A4.w); // base del “strip” en coords documento relativas a su canvas
-      // como el canvas de anilla está fuera, dibujamos el strip localmente:
-      // hacemos una columna de 10mm y agujeros centrados
-
-      // Fondo del strip (rellenamos todo el canvas de la anilla)
-      cv.setTransform(1,0,0,1,0,0); // para pintar el rectángulo del propio canvas sin vista (decorativo)
-      // (nada) -> Usaremos solo agujeros y alambre con la vista aplicada más abajo
-
-      // Volvemos a vista
-      cv.setTransform(viewScale,0,0,viewScale, -viewOffsetX*viewScale, -viewOffsetY*viewScale);
-
-      // Columna visual pegada a la hoja
-      const stripX = (side==='left') ? -stripW : A4.w;
+      const stripX=(side==='left')?-stripW:A4.w;
       cv.fillStyle='#f5f5f5';
-      cv.fillRect(stripX, 0, stripW, A4.h);
-
-      // Borde leve
+      cv.fillRect(stripX,0,stripW,A4.h);
       cv.fillStyle='rgba(0,0,0,.06)';
-      if(side==='left') cv.fillRect(stripX+stripW-2*DPR,0,2*DPR,A4.h);
-      else cv.fillRect(stripX,0,2*DPR,A4.h);
+      if(side==='left') cv.fillRect(stripX+stripW-2*DPR,0,2*DPR,A4.h); else cv.fillRect(stripX,0,2*DPR,A4.h);
 
-      // Agujeros + alambre
       cv.fillStyle='#d1d5db'; cv.strokeStyle='#9ca3af'; cv.lineWidth=1*DPR;
       const xCenter=(side==='left')?(stripX+stripW-holeR*0.9):(stripX+holeR*0.9);
       for(let y=topPad;y<=A4.h-topPad;y+=pitch){
         cv.beginPath(); cv.arc(xCenter,y,holeR,0,Math.PI*2); cv.fill(); cv.stroke();
-        // alambre (detalle)
         cv.beginPath(); const wireR=holeR*0.55;
         cv.arc(xCenter+(side==='left'?-holeR*0.25:holeR*0.25),y,wireR,-Math.PI/2,Math.PI/2);
         cv.strokeStyle='#6b7280'; cv.stroke();
@@ -383,38 +405,29 @@
     });
   }
 
-  // Guía (cabecera + práctica), en coords documento
+  // ===== Guía (cabecera + práctica) =====
   function currentGuideText(){
     const sel=ghostSelect.value;
     if(!ghostShow.checked || sel==='__none__') return '';
     if(sel==='__custom__') return (ghostText.value||'').trim();
     return sel;
   }
-  function firstBaseLineY(){
-    const top=parseFloat(pauta.dataset.topPad||20*DPR);
-    const step=parseFloat(pauta.dataset.step||mm2px(parseFloat(stepSel.value)));
-    return top+2*step;
-  }
-  function baseLineForGuide(){
-    const step=parseFloat(pauta.dataset.step||mm2px(parseFloat(stepSel.value)));
-    const period=parseFloat(pauta.dataset.period||step*4.6);
-    const idx=parseInt(viaIndex.value||'2',10);
-    return firstBaseLineY()+(idx-1)*period;
-  }
-  function marginXpx(){ return parseFloat(pauta.dataset.margin || mm2px(parseFloat(margenSel.value)||0)); }
-  function stepPx(){ return parseFloat(pauta.dataset.step || mm2px(parseFloat(stepSel.value))); }
-  function startTextX(){ const m=marginXpx(); return (m>0?m:0) + stepPx(); } // 1 cuadro desde margen
+  function firstBaseLineY(){ const top=+pauta.dataset.topPad||20*DPR; const step=+pauta.dataset.step||mm2px(+stepSel.value); return top+2*step; }
+  function baseLineForGuide(){ const step=+pauta.dataset.step||mm2px(+stepSel.value); const period=+pauta.dataset.period||step*4.6; const idx=+(viaIndex.value||2); return firstBaseLineY()+(idx-1)*period; }
+  function marginXpx(){ return +pauta.dataset.margin || mm2px(+margenSel.value||0); }
+  function stepPx(){ return +pauta.dataset.step || mm2px(+stepSel.value); }
+  function startTextX(){ const m=marginXpx(); return (m>0?m:0)+stepPx(); }
 
-  function drawHeaderLine(ctx){
+  function drawHeaderLine(cv){
     const header=getHeaderText();
-    const fontPx=Math.max(48*DPR, parseInt(ghostSize.value,10)*0.55*DPR);
-    ctx.font=`normal ${fontPx}px "EscolarG", system-ui, sans-serif`;
-    ctx.textBaseline='alphabetic';
-    ctx.fillStyle='rgba(17,24,39,.40)';
-    ctx.strokeStyle='rgba(107,114,128,.55)';
-    ctx.lineWidth=Math.max(1,Math.round(fontPx*0.06));
-    ctx.fillText(header, startTextX(), firstBaseLineY());
-    ctx.strokeText(header, startTextX(), firstBaseLineY());
+    const fontPx=Math.max(48*DPR, (+ghostSize.value)*0.55*DPR);
+    cv.font=`normal ${fontPx}px "EscolarG", system-ui, sans-serif`;
+    cv.textBaseline='alphabetic';
+    cv.fillStyle='rgba(17,24,39,.40)';
+    cv.strokeStyle='rgba(107,114,128,.55)';
+    cv.lineWidth=Math.max(1,Math.round(fontPx*0.06));
+    cv.fillText(header, startTextX(), firstBaseLineY());
+    cv.strokeText(header, startTextX(), firstBaseLineY());
   }
 
   function drawGuide(){
@@ -423,11 +436,10 @@
     ctx.clearRect(0,0,ghost.width,ghost.height);
 
     withView(ctx, (cv)=>{
-      // Cabecera (1ª vía)
       drawHeaderLine(cv);
 
       const txt=currentGuideText(); if(!txt) return;
-      const fontPx=parseInt(ghostSize.value,10)*DPR;
+      const fontPx=(+ghostSize.value)*DPR;
       cv.font=`normal ${fontPx}px "EscolarG", system-ui, sans-serif`;
       cv.textBaseline='alphabetic';
       cv.fillStyle='rgba(17,24,39,.28)';
@@ -450,22 +462,18 @@
     });
   }
 
-  // ===== Dibujo libre (en coords documento, independiente del zoom) =====
+  // ===== Dibujo libre (historial en coords documento; grosor visual constante) =====
   const dctx=draw.getContext('2d'); dctx.lineCap='round'; dctx.lineJoin='round';
   let drawing=false, points=[]; const history=[]; let redoStack=[];
 
-  function setComposite(){ dctx.globalCompositeOperation=(toolSel.value==='eraser')?'destination-out':'source-over'; }
+  function toolMode(){ return (toolSel.value==='eraser')?'destination-out':'source-over'; }
 
-  // Convierte coordenadas de cliente -> coordenadas de documento
+  // Cliente -> documento
   function pointerDocPos(e){
     const r=draw.getBoundingClientRect();
     const xCanvas=(e.clientX - r.left) * (draw.width / r.width);
     const yCanvas=(e.clientY - r.top)  * (draw.height/ r.height);
-    // inversa de la vista: (xDoc - offX)*scale = xCanvas  => xDoc = xCanvas/scale + offX
-    return {
-      x: xCanvas / viewScale + viewOffsetX,
-      y: yCanvas / viewScale + viewOffsetY
-    };
+    return { x: xCanvas / viewScale + viewOffsetX, y: yCanvas / viewScale + viewOffsetY };
   }
 
   function startDraw(e){
@@ -473,12 +481,14 @@
     e.preventDefault(); drawing=true; redoStack.length=0;
     try{ draw.setPointerCapture(e.pointerId); }catch{}
     points=[pointerDocPos(e)];
-    dctx.save(); setComposite();
-    dctx.lineWidth=parseFloat(penSize.value)*DPR;
-    dctx.strokeStyle='#111';
-    // punto inicial
+    dctx.save();
+    dctx.globalCompositeOperation=toolMode();
+    const size=(+penSize.value)*DPR;
+
     withView(dctx, (cv)=>{
-      cv.beginPath(); cv.arc(points[0].x,points[0].y,dctx.lineWidth/2,0,Math.PI*2); cv.fill();
+      cv.beginPath();
+      cv.arc(points[0].x, points[0].y, (size/2)/viewScale, 0, Math.PI*2); // radio compensado
+      cv.fillStyle='#111'; cv.fill();
     });
   }
   function moveDraw(e){
@@ -486,16 +496,22 @@
     const p=pointerDocPos(e);
     const prev=points[points.length-1];
     points.push(p);
+    const size=(+penSize.value)*DPR;
+
     withView(dctx, (cv)=>{
       cv.beginPath();
-      cv.quadraticCurveTo(prev.x,prev.y,(prev.x+p.x)/2,(prev.y+p.y)/2);
+      cv.moveTo(prev.x, prev.y);
+      cv.quadraticCurveTo(prev.x, prev.y, (prev.x+p.x)/2, (prev.y+p.y)/2);
+      cv.lineWidth = size / viewScale;   // grosor visual constante
+      cv.strokeStyle = '#111';
       cv.stroke();
     });
   }
   function endDraw(e){
     if(!drawing) return;
     drawing=false;
-    history.push([{mode:(toolSel.value==='eraser')?'destination-out':'source-over', size:parseFloat(penSize.value)*DPR, color:'#111', path:points.slice()}]);
+    const size=(+penSize.value)*DPR;
+    history.push([{ mode:toolMode(), size, color:'#111', path:points.slice() }]);
     dctx.restore();
     try{ draw.releasePointerCapture(e?.pointerId); }catch{}
   }
@@ -511,9 +527,11 @@
       strokes.forEach(s=>{
         cv.save();
         cv.globalCompositeOperation=s.mode;
-        dctx.lineWidth=s.size; dctx.strokeStyle=s.color;
         if(s.path.length===1){
-          const p=s.path[0]; cv.beginPath(); cv.arc(p.x,p.y,s.size/2,0,Math.PI*2); cv.fillStyle=s.color; cv.fill();
+          const p=s.path[0];
+          cv.beginPath();
+          cv.arc(p.x,p.y,(s.size/2)/viewScale,0,Math.PI*2);
+          cv.fillStyle=s.color; cv.fill();
         }else{
           cv.beginPath();
           for(let i=0;i<s.path.length-1;i++){
@@ -521,7 +539,8 @@
             if(i===0) cv.moveTo(a.x,a.y);
             cv.quadraticCurveTo(a.x,a.y,(a.x+b.x)/2,(a.y+b.y)/2);
           }
-          cv.lineWidth=s.size; cv.strokeStyle=s.color; cv.stroke();
+          cv.lineWidth = s.size / viewScale; // compensación
+          cv.strokeStyle = s.color; cv.stroke();
         }
         cv.restore();
       });
@@ -531,19 +550,16 @@
   redoBtn.onclick=()=>{ if(!redoStack.length) return; history.push(redoStack.pop()); redrawDrawLayer(); };
   clearBtn.onclick=()=>{ history.length=0; redoStack.length=0; redrawDrawLayer(); };
 
-  // ===== Exportar (sin vista; siempre a tamaño real) =====
+  // ===== Exportar (sin vista; tamaño real) =====
   function composeToCanvas(){
     const off=document.createElement('canvas'); off.width=A4.w; off.height=A4.h;
     const o=off.getContext('2d');
-
-    // fondo
     o.fillStyle='#fff'; o.fillRect(0,0,off.width,off.height);
 
-    // pauta + cuadrícula
-    const step=mm2px(parseFloat(stepSel.value));
-    const top=20*DPR;
+    const step=mm2px(+stepSel.value);
+    const top =20*DPR;
     const {base,sec,margin}=palette(colorSel.value);
-    const marginPx=mm2px(parseFloat(margenSel.value)||0);
+    const marginPx=mm2px(+margenSel.value||0);
 
     // cuadrícula
     if(showGrid.checked){
@@ -551,7 +567,7 @@
       let x=Math.max(0,marginPx); while(x<A4.w-1){ strokeV(o,x,o.lineWidth,sec); x+=step; }
       o.restore();
     }
-
+    // pauta
     if(showPauta.checked){
       let y=top;
       while(y<A4.h-top){
@@ -566,56 +582,48 @@
       }
     }
 
-    // cabecera (1 cuadro desde margen)
-    (function drawHeaderToExport(ctx){
+    // cabecera
+    (function(ctx){
       const baseY=top+2*step;
       const header=getHeaderText();
-      const fontPx=Math.max(48*DPR, parseInt(ghostSize.value,10)*0.55*DPR);
+      const fontPx=Math.max(48*DPR, (+ghostSize.value)*0.55*DPR);
       ctx.save();
       ctx.font=`normal ${fontPx}px "EscolarG", system-ui, sans-serif`;
       ctx.textBaseline='alphabetic';
       ctx.fillStyle='rgba(17,24,39,.40)';
       ctx.strokeStyle='rgba(107,114,128,.55)';
       ctx.lineWidth=Math.max(1,Math.round(fontPx*0.06));
-      let x=(marginPx>0?marginPx:0)+step; // 1 cuadro
-      ctx.fillText(header,x,baseY);
-      ctx.strokeText(header,x,baseY);
+      let x=(marginPx>0?marginPx:0)+step;
+      ctx.fillText(header,x,baseY); ctx.strokeText(header,x,baseY);
       ctx.restore();
     })(o);
 
-    // guía práctica
+    // guía
     const txt=currentGuideText();
     if(txt){
-      const fontPx=parseInt(ghostSize.value,10)*DPR;
+      const fontPx=(+ghostSize.value)*DPR;
       o.font=`normal ${fontPx}px "EscolarG", system-ui, sans-serif`;
       o.textBaseline='alphabetic';
       o.fillStyle='rgba(17,24,39,.28)';
       o.strokeStyle='rgba(107,114,128,.6)';
       o.lineWidth=Math.max(1,Math.round(fontPx*0.06));
       const period=step*4.6;
-      const baseY=top+2*step+(parseInt(viaIndex.value||'2',10)-1)*period;
-
+      const baseY=top+2*step+(+(viaIndex.value||2)-1)*period;
       if(inlineWord.checked){
         let x=(marginPx>0?marginPx:0)+step;
-        for(const ch of txt){
-          o.fillText(ch,x,baseY);
-          o.strokeText(ch,x,baseY);
-          x+=o.measureText(ch).width+fontPx*0.12;
-        }
+        for(const ch of txt){ o.fillText(ch,x,baseY); o.strokeText(ch,x,baseY); x+=o.measureText(ch).width+fontPx*0.12; }
       }else{
         const total=o.measureText(txt).width;
-        o.fillText(txt,(A4.w-total)/2,baseY);
-        o.strokeText(txt,(A4.w-total)/2,baseY);
+        o.fillText(txt,(A4.w-total)/2,baseY); o.strokeText(txt,(A4.w-total)/2,baseY);
       }
     }
 
-    // trazos (replay en coords documento)
+    // trazos
     const strokes=history.flat();
     strokes.forEach(s=>{
-      o.save();
-      o.globalCompositeOperation=s.mode;
+      o.save(); o.globalCompositeOperation=s.mode;
       if(s.path.length===1){
-        const p=s.path[0]; o.beginPath(); o.arc(p.x,p.y,s.size/2,0,Math.PI*2); o.fillStyle=s.color; o.fill();
+        const p=s.path[0]; o.beginPath(); o.arc(p.x,p.y,(s.size/2),0,Math.PI*2); o.fillStyle=s.color; o.fill();
       }else{
         o.beginPath();
         for(let i=0;i<s.path.length-1;i++){
@@ -631,17 +639,10 @@
     return off;
   }
 
-  savePngBtn.onclick=async()=>{
-    await waitEscolar();
-    const off=composeToCanvas();
-    const a=document.createElement('a');
-    a.href=off.toDataURL('image/png'); a.download='pauta-trazos.png'; a.click();
-  };
-
+  savePngBtn.onclick=async()=>{ await waitEscolar(); const off=composeToCanvas(); const a=document.createElement('a'); a.href=off.toDataURL('image/png'); a.download='pauta-trazos.png'; a.click(); };
   printPdfBtn.onclick=async()=>{
     await waitEscolar();
-    const off=composeToCanvas();
-    const url=off.toDataURL('image/png');
+    const off=composeToCanvas(), url=off.toDataURL('image/png');
     const w=window.open('', '_blank'); if(!w) return;
     w.document.write(`<!DOCTYPE html><html><head><meta charset="utf-8">
       <title>Imprimir — Pauta</title>
@@ -663,95 +664,30 @@
     w.document.close();
   };
 
-  // ===== Vista: Zoom & Pan (re-render) =====
-  function clamp(v, min, max){ return Math.min(max, Math.max(min, v)); }
-  function applyViewAndRedraw(){ drawPauta(); drawGuide(); redrawDrawLayer(); drawSpiralCanvas(); }
-
-  function zoomBy(factor, centerDocX = A4.w/2, centerDocY = A4.h/2){
-    const old = viewScale;
-    const next = clamp(old * factor, 0.3, 4);
-    if(next === old) return;
-    // Mantener el punto de foco
-    // (center - offset) * old = pantalla  =>  offset' = center - pantalla/next
-    // Tomamos pantalla implícita como (center - offset)*old
-    const screenX = (centerDocX - viewOffsetX) * old;
-    const screenY = (centerDocY - viewOffsetY) * old;
-    viewScale = next;
-    viewOffsetX = centerDocX - screenX / viewScale;
-    viewOffsetY = centerDocY - screenY / viewScale;
-    applyViewAndRedraw();
-  }
-  document.getElementById('zoomIn').onclick = ()=> zoomBy(1.15);
-  document.getElementById('zoomOut').onclick= ()=> zoomBy(1/1.15);
-  document.getElementById('zoomReset').onclick=()=>{ viewScale=1; viewOffsetX=0; viewOffsetY=0; applyViewAndRedraw(); };
-
-  // Pan con arrastre
-  let panning=false, panStart={x:0,y:0}, startOffset={x:0,y:0};
-  paper.addEventListener('pointerdown', e=>{
-    if(!panMode.checked) return;
-    panning=true; panStart={x:e.clientX, y:e.clientY}; startOffset={x:viewOffsetX, y:viewOffsetY};
-    paper.setPointerCapture?.(e.pointerId);
-    e.preventDefault();
-  });
-  paper.addEventListener('pointermove', e=>{
-    if(!panning) return;
-    const dx=(e.clientX - panStart.x) / viewScale; // convertir del movimiento en px pantalla a px doc
-    const dy=(e.clientY - panStart.y) / viewScale;
-    viewOffsetX = startOffset.x - dx;
-    viewOffsetY = startOffset.y - dy;
-    applyViewAndRedraw();
-  });
-  const endPan=e=>{ if(!panning) return; panning=false; try{paper.releasePointerCapture(e.pointerId);}catch{} };
-  paper.addEventListener('pointerup', endPan);
-  paper.addEventListener('pointercancel', endPan);
-  paper.addEventListener('pointerleave', endPan);
-
-  // Ctrl + rueda = zoom centrado en cursor
-  document.addEventListener('wheel', e=>{
-    if(!e.ctrlKey) return;
-    e.preventDefault();
-    // Calcular punto de foco en coords documento desde el cursor:
-    const r=pauta.getBoundingClientRect();
-    const xCanvas=(e.clientX - r.left) * (pauta.width / r.width);
-    const yCanvas=(e.clientY - r.top)  * (pauta.height/ r.height);
-    const focusDocX = xCanvas / viewScale + viewOffsetX;
-    const focusDocY = yCanvas / viewScale + viewOffsetY;
-    const factor = e.deltaY>0 ? 1/1.08 : 1.08;
-    zoomBy(factor, focusDocX, focusDocY);
-  }, {passive:false});
-
-  // Redibujado global y eventos
+  // ===== Redibujado global =====
   function redrawAll(){ drawPauta(); drawGuide(); redrawDrawLayer(); drawSpiralCanvas(); }
-  [stepSel,margenSel,colorSel,showPauta,showGrid].forEach(el=>el.addEventListener('change', redrawAll));
-  document.getElementById('redraw').onclick=redrawAll;
 
+  [stepSel,margenSel,colorSel,showPauta,showGrid].forEach(el=>el.addEventListener('change',redrawAll));
+  redrawBtn.onclick=redrawAll;
   ghostSelect.addEventListener('change',()=>{
     const v=ghostSelect.value;
     ghostText.style.display=(v==='__custom__')?'inline-block':'none';
-    ghostShow.checked=(v!=='__none__');
-    redrawAll();
+    ghostShow.checked=(v!=='__none__'); redrawAll();
   });
-  [ghostText,ghostSize,ghostShow,inlineWord,viaIndex].forEach(el=>el.addEventListener('input', redrawAll));
+  [ghostText,ghostSize,ghostShow,inlineWord,viaIndex].forEach(el=>el.addEventListener('input',redrawAll));
+  [showSpiral,spiralSide].forEach(el=>el.addEventListener('change', ()=>{ spiral.style.left=(spiralSide.value==='left')?px2css(-SPIRAL_W):px2css(A4.w); drawSpiralCanvas(); }));
 
-  [showSpiral,spiralSide].forEach(el=>{
-    el.addEventListener('change', ()=>{
-      spiral.style.left=(spiralSide.value==='left')?px2css(-SPIRAL_W):px2css(A4.w);
-      drawSpiralCanvas();
-    });
-  });
-
-  document.getElementById('tool').addEventListener('change', ()=>{/* modo cambia en startDraw */});
+  document.getElementById('tool').addEventListener('change', ()=>{/* modo se aplica en startDraw/move */});
 
   // Init
   (async ()=>{
-    // Tamaño de los lienzos
-    cvs.forEach(cv=>{ cv.width=A4.w; cv.height=A4.h; cv.style.width=px2css(A4.w); cv.style.height=px2css(A4.h); });
+    [pauta,draw,ghost].forEach(cv=>{ cv.width=A4.w; cv.height=A4.h; cv.style.width=px2css(A4.w); cv.style.height=px2css(A4.h); });
     paper.style.width=px2css(A4.w); paper.style.height=px2css(A4.h);
     spiral.width=SPIRAL_W; spiral.height=A4.h; spiral.style.width=px2css(SPIRAL_W); spiral.style.height=px2css(A4.h);
     spiral.style.left=(spiralSide.value==='left')?px2css(-SPIRAL_W):px2css(A4.w);
 
     await waitEscolar();
-    redrawAll(); // primer dibujado con la fuente ya disponible
+    redrawAll();
   })();
 
   window.addEventListener('resize', ()=>{ resizeA4(); redrawAll(); }, {passive:true});
