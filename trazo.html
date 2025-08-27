@@ -5,7 +5,7 @@
 <meta name="viewport" content="width=device-width,initial-scale=1,viewport-fit=cover" />
 <title>Pauta Lamela — práctica de trazos</title>
 
-<!-- Preload de la fuente para evitar FOUT -->
+<!-- Preload de la fuente -->
 <link rel="preload" href="escolar_G.woff2" as="font" type="font/woff2" crossorigin>
 <link rel="icon" href='data:image/svg+xml,<svg xmlns="http://www.w3.org/2000/svg"/>'>
 
@@ -18,14 +18,12 @@
   }
 
   :root{
-    --ink:#111; --panel:#fff; --border:#d1d5db; --bg:#f3f4f6;
-    --sec:#3b82f6; --base:#ef4444; --margin:#10b981;
-    --toolbar-bg:#ffffffcc; --toolbar-border:#e5e7eb; --shadow:0 6px 20px rgba(0,0,0,.12);
+    --border:#d1d5db; --bg:#f3f4f6;
+    --toolbar-bg:#ffffffcc; --toolbar-border:#e5e7eb;
     --pill:#f8fafc; --pill-border:#e5e7eb; --pill-hover:#eef2ff;
+    --shadow:0 6px 20px rgba(0,0,0,.12);
   }
-
   *{box-sizing:border-box}
-
   body{
     margin:0;background:var(--bg);
     font-family:system-ui,-apple-system,Segoe UI,Roboto,Helvetica,Arial;
@@ -35,11 +33,9 @@
   /* ===== Toolbar estilo app ===== */
   header.toolbar{
     position:sticky; top:8px; z-index:10;
-    margin:8px auto 8px; /* centrado */
-    max-width:1200px; width:calc(100% - 16px);
+    margin:8px auto; max-width:1200px; width:calc(100% - 16px);
     background:var(--toolbar-bg); backdrop-filter:saturate(1.2) blur(6px);
-    border:1px solid var(--toolbar-border);
-    border-radius:14px;
+    border:1px solid var(--toolbar-border); border-radius:14px;
     box-shadow:var(--shadow);
     padding:.5rem .75rem;
     display:flex; gap:.75rem; align-items:center; overflow-x:auto;
@@ -48,68 +44,49 @@
   header.toolbar::-webkit-scrollbar{height:8px}
   header.toolbar::-webkit-scrollbar-thumb{background:#d1d5db;border-radius:999px}
 
-  .tgroup{
-    display:flex; align-items:center; gap:.5rem;
-    padding-inline:.25rem; position:relative;
+  .tgroup{display:flex;align-items:center;gap:.5rem;position:relative}
+  .tgroup+.tgroup{margin-left:.25rem}
+  .tgroup+.tgroup::before{
+    content:"";position:absolute;left:-.375rem;top:6px;bottom:6px;
+    width:1px;background:linear-gradient(to bottom,transparent,#e5e7eb,transparent);
   }
-  /* separadores entre grupos */
-  .tgroup + .tgroup{
-    margin-left:.25rem;
-  }
-  .tgroup + .tgroup::before{
-    content:""; position:absolute; left:-.375rem; top:6px; bottom:6px;
-    width:1px; background:linear-gradient(to bottom, transparent, #e5e7eb, transparent);
-  }
-
-  label{font-size:.85rem;color:#374151; white-space:nowrap}
-
+  label{font-size:.85rem;color:#374151;white-space:nowrap}
   select,input[type="text"]{
-    border:1px solid var(--pill-border); border-radius:999px;
-    padding:.35rem .65rem; background:var(--pill);
-    font-size:.9rem; outline:none;
+    border:1px solid var(--pill-border);border-radius:999px;
+    padding:.35rem .65rem;background:var(--pill);font-size:.9rem;outline:none;
   }
   input[type="range"]{width:120px}
   button{
-    border:1px solid var(--pill-border); border-radius:999px;
-    background:var(--pill); padding:.45rem .7rem; cursor:pointer;
+    border:1px solid var(--pill-border);border-radius:999px;
+    background:var(--pill);padding:.45rem .7rem;cursor:pointer;
     transition:background .15s ease, transform .02s ease;
   }
   button:hover{background:var(--pill-hover)}
   button:active{transform:translateY(1px)}
+  .icon{padding:.45rem .6rem;min-width:2.2rem}
 
-  /* Icon-buttons más compactos */
-  .icon{padding:.45rem .6rem; min-width:2.2rem}
-
-  /* Contenido */
-  main{
-    flex:1 1 auto;display:flex;justify-content:center;align-items:flex-start;
-    overflow:auto;padding:8px;
-  }
+  /* Lienzo / papel */
+  main{flex:1 1 auto;display:flex;justify-content:center;align-items:flex-start;overflow:auto;padding:8px}
   .paper{
-    position:relative;
-    border:1px solid var(--border);
-    border-radius:12px;
-    background:#fff;
-    box-shadow:0 4px 16px rgba(0,0,0,.10);
-    transform-origin: top left; /* zoom/pan */
-    touch-action: none;         /* pan controlado */
+    position:relative;border:1px solid var(--border);border-radius:12px;
+    background:#fff;box-shadow:0 4px 16px rgba(0,0,0,.1);
+    transform-origin:top left;touch-action:none; /* pan controlado */
   }
-
-  canvas{position:absolute; top:0; left:0; touch-action:none}
-  #spiralCanvas{z-index:0; pointer-events:none;}
-  #pautaCanvas{ z-index:1; pointer-events:none; border-radius:12px; }
-  #drawCanvas { z-index:2; border-radius:12px; }
-  #ghostCanvas{ z-index:3; pointer-events:none; border-radius:12px; }
+  canvas{position:absolute;top:0;left:0;touch-action:none}
+  #spiralCanvas{z-index:0;pointer-events:none}
+  #pautaCanvas{z-index:1;pointer-events:none;border-radius:12px}
+  #drawCanvas{z-index:2;border-radius:12px}
+  #ghostCanvas{z-index:3;pointer-events:none;border-radius:12px}
 </style>
 </head>
 <body>
 
-<header class="toolbar" role="toolbar" aria-label="Barra de herramientas de práctica">
+<header class="toolbar" role="toolbar" aria-label="Barra de herramientas">
   <!-- Archivo -->
   <div class="tgroup" aria-label="Archivo">
-    <button id="savePng" class="icon" title="Guardar PNG">💾</button>
+    <button id="savePng"  class="icon" title="Guardar PNG">💾</button>
     <button id="printPdf" class="icon" title="Imprimir / PDF">🖨️</button>
-    <button id="clear" class="icon" title="Limpiar">🗑️</button>
+    <button id="clear"    class="icon" title="Limpiar">🗑️</button>
   </div>
 
   <!-- Edición -->
@@ -120,7 +97,7 @@
       <option value="eraser">🩹 Goma</option>
     </select>
     <label>Grosor</label>
-    <input id="penSize" type="range" min="1" max="16" value="4" />
+    <input id="penSize" type="range" min="1" max="64" value="40" />
     <button id="undo" class="icon" title="Deshacer">↶</button>
     <button id="redo" class="icon" title="Rehacer">↷</button>
   </div>
@@ -176,8 +153,7 @@
       </optgroup>
     </select>
     <input id="ghostText" type="text" placeholder="Escribe aquí…" style="display:none;width:12rem" />
-    <label>Tamaño</label>
-    <input id="ghostSize" type="range" min="40" max="300" value="80" />
+    <label>Tamaño</label><input id="ghostSize" type="range" min="40" max="300" value="80" />
     <label>Vía</label>
     <select id="viaIndex">
       <option value="1">1ª</option>
@@ -187,7 +163,7 @@
       <option value="5">5ª</option>
     </select>
     <label><input type="checkbox" id="ghostShow" checked/> Mostrar</label>
-    <label><input type="checkbox" id="inlineWord" checked/> Palabra en línea</label>
+    <label><input type="checkbox" id="inlineWord" checked/> En línea</label>
   </div>
 
   <!-- Anilla -->
@@ -200,7 +176,7 @@
     </select>
   </div>
 
-  <!-- Vista (Zoom/Pan) -->
+  <!-- Vista -->
   <div class="tgroup" aria-label="Vista">
     <button id="zoomIn" class="icon" title="Acercar">＋</button>
     <button id="zoomOut" class="icon" title="Alejar">－</button>
@@ -220,36 +196,30 @@
 
 <script>
 (()=>{
-  // ====== Utilidades ======
-  const DPR = Math.max(1, window.devicePixelRatio||1);
-  const mm2px = mm => mm*96/25.4*DPR;
-  const px2css = px => (px/DPR)+'px';
-  const A4 = { w:mm2px(210), h:mm2px(297) };
-  const SPIRAL_W = mm2px(10);
+  // ===== Utilidades y constantes =====
+  const DPR=Math.max(1,window.devicePixelRatio||1);
+  const mm2px=mm=>mm*96/25.4*DPR, px2css=px=>(px/DPR)+'px';
+  const A4={w:mm2px(210),h:mm2px(297)};
+  const SPIRAL_W=mm2px(10);
 
   // Fecha automática
-  function formatTodayEs(){
-    return new Intl.DateTimeFormat('es-ES',{day:'numeric', month:'long', year:'numeric'}).format(new Date());
-  }
-  function getHeaderText(){ return `Granada — ${formatTodayEs()}`; }
+  function formatTodayEs(){return new Intl.DateTimeFormat('es-ES',{day:'numeric',month:'long',year:'numeric'}).format(new Date());}
+  function getHeaderText(){return `Granada — ${formatTodayEs()}`;}
 
-  // ====== Carga fiable de la fuente escolar (evita FOUT) ======
-  let escolarReadyPromise = null;
-  function waitEscolar() {
-    if (!escolarReadyPromise) {
-      if (document.fonts && document.fonts.load) {
-        escolarReadyPromise = Promise.all([
-          document.fonts.load('16px "EscolarG"'),
-          document.fonts.ready
-        ]).catch(()=>{});
-      } else {
-        escolarReadyPromise = new Promise(r=>setTimeout(r, 200));
+  // Fuente escolar cargada antes de dibujar/exportar
+  let escolarReady=null;
+  function waitEscolar(){
+    if(!escolarReady){
+      if(document.fonts && document.fonts.load){
+        escolarReady=Promise.all([document.fonts.load('16px "EscolarG"'), document.fonts.ready]).catch(()=>{});
+      }else{
+        escolarReady=new Promise(r=>setTimeout(r,200));
       }
     }
-    return escolarReadyPromise;
+    return escolarReady;
   }
 
-  // ====== Elementos ======
+  // Elementos
   const paper=document.getElementById('paper');
   const pauta=document.getElementById('pautaCanvas');
   const draw=document.getElementById('drawCanvas');
@@ -263,7 +233,6 @@
   const colorSel=document.getElementById('colorPauta');
   const showPauta=document.getElementById('showPauta');
   const showGrid=document.getElementById('showGrid');
-  const redrawBtn=document.getElementById('redraw');
   const ghostSelect=document.getElementById('ghostSelect');
   const ghostText=document.getElementById('ghostText');
   const ghostSize=document.getElementById('ghostSize');
@@ -279,26 +248,21 @@
   const clearBtn=document.getElementById('clear');
   const savePngBtn=document.getElementById('savePng');
   const printPdfBtn=document.getElementById('printPdf');
-
-  // Vista (Zoom/Pan)
   const zoomInBtn=document.getElementById('zoomIn');
   const zoomOutBtn=document.getElementById('zoomOut');
   const zoomResetBtn=document.getElementById('zoomReset');
   const panMode=document.getElementById('panMode');
 
-  // ====== Paletas ======
+  // Paletas
   function palette(mode){
     if(mode==='suave') return {base:'#f87171', sec:'#93c5fd', margin:'#22c55e'};
     if(mode==='alto')  return {base:'#dc2626', sec:'#1d4ed8', margin:'#16a34a'};
     return {base:'#ef4444', sec:'#3b82f6', margin:'#10b981'};
   }
 
-  // ====== Tamaños y colocación ======
+  // Tamaño y colocación
   function resizeA4(){
-    cvs.forEach(cv=>{
-      cv.width=A4.w; cv.height=A4.h;
-      cv.style.width=px2css(A4.w); cv.style.height=px2css(A4.h);
-    });
+    cvs.forEach(cv=>{ cv.width=A4.w; cv.height=A4.h; cv.style.width=px2css(A4.w); cv.style.height=px2css(A4.h); });
     paper.style.width=px2css(A4.w);
     paper.style.height=px2css(A4.h);
 
@@ -309,21 +273,16 @@
     spiral.style.left=(spiralSide.value==='left')?px2css(-SPIRAL_W):px2css(A4.w);
   }
 
-  // ====== Pauta Lamela + Cuadrícula vertical ======
-  function strokeH(ctx,y,w,c){ ctx.beginPath(); ctx.moveTo(0,y); ctx.lineTo(A4.w,y); ctx.lineWidth=w; ctx.strokeStyle=c; ctx.stroke(); }
-  function strokeV(ctx,x,w,c){ ctx.beginPath(); ctx.moveTo(x,0); ctx.lineTo(x,A4.h); ctx.lineWidth=w; ctx.strokeStyle=c; ctx.stroke(); }
+  // Pauta + cuadrícula
+  function strokeH(ctx,y,w,c){ctx.beginPath();ctx.moveTo(0,y);ctx.lineTo(A4.w,y);ctx.lineWidth=w;ctx.strokeStyle=c;ctx.stroke();}
+  function strokeV(ctx,x,w,c){ctx.beginPath();ctx.moveTo(x,0);ctx.lineTo(x,A4.h);ctx.lineWidth=w;ctx.strokeStyle=c;ctx.stroke();}
 
   function drawGridVertical(ctx, step, marginPx, secColor){
     if(!showGrid.checked) return;
     ctx.save();
-    ctx.globalAlpha = 0.15; // tenue
-    ctx.lineWidth = Math.max(0.75*DPR, 0.5*DPR);
-    // Empieza exactamente en la línea de margen
-    let x = Math.max(0, marginPx);
-    while(x < A4.w - 1){
-      strokeV(ctx, x, ctx.lineWidth, secColor);
-      x += step;
-    }
+    ctx.globalAlpha=0.15; ctx.lineWidth=Math.max(0.75*DPR,0.5*DPR);
+    let x=Math.max(0,marginPx);
+    while(x<A4.w-1){ strokeV(ctx,x,ctx.lineWidth,secColor); x+=step; }
     ctx.restore();
   }
 
@@ -331,8 +290,6 @@
     const ctx=pauta.getContext('2d');
     ctx.setTransform(1,0,0,1,0,0);
     ctx.clearRect(0,0,pauta.width,pauta.height);
-
-    // fondo hoja
     ctx.fillStyle='#fff'; ctx.fillRect(0,0,pauta.width,pauta.height);
 
     const step=mm2px(parseFloat(stepSel.value));
@@ -347,20 +304,18 @@
     pauta.dataset.period=String(period);
     pauta.dataset.margin=String(marginPx);
 
-    // cuadrícula vertical (debajo de horizontales)
+    // cuadrícula primero
     drawGridVertical(ctx, step, marginPx, sec);
 
-    if(!showPauta.checked) return;
-
-    // patrón Lamela
-    let y=top;
-    while(y<pauta.height-top){
-      strokeH(ctx,y,1*DPR,sec); y+=step;        // ascendente
-      strokeH(ctx,y,1*DPR,sec); y+=step;        // techo
-      strokeH(ctx,y,1.5*DPR,base); y+=step;     // base (roja)
-      strokeH(ctx,y,1*DPR,sec); y+=step*1.6;    // descendente + espacio
+    if(showPauta.checked){
+      let y=top;
+      while(y<pauta.height-top){
+        strokeH(ctx,y,1*DPR,sec); y+=step;        // ascendente
+        strokeH(ctx,y,1*DPR,sec); y+=step;        // techo
+        strokeH(ctx,y,1.5*DPR,base); y+=step;     // base (roja)
+        strokeH(ctx,y,1*DPR,sec); y+=step*1.6;    // descendente + espacio
+      }
     }
-
     // margen
     if(marginPx>0){
       ctx.beginPath(); ctx.moveTo(marginPx,0); ctx.lineTo(marginPx,pauta.height);
@@ -368,7 +323,7 @@
     }
   }
 
-  // ====== Anilla (fuera de la hoja) ======
+  // Anilla (fuera de la hoja)
   function drawSpiralCanvas(){
     const ctx=spiral.getContext('2d');
     ctx.setTransform(1,0,0,1,0,0);
@@ -381,9 +336,7 @@
     const xStrip=(side==='left')?(spiral.width-stripW):0;
     const xCenter=(side==='left')?(xStrip+stripW-holeR*0.9):(xStrip+holeR*0.9);
 
-    ctx.fillStyle='#f5f5f5';
-    ctx.fillRect(xStrip,0,stripW,spiral.height);
-
+    ctx.fillStyle='#f5f5f5'; ctx.fillRect(xStrip,0,stripW,spiral.height);
     ctx.fillStyle='rgba(0,0,0,.06)';
     if(side==='left') ctx.fillRect(xStrip+stripW-2*DPR,0,2*DPR,spiral.height);
     else ctx.fillRect(xStrip,0,2*DPR,spiral.height);
@@ -391,14 +344,14 @@
     ctx.fillStyle='#d1d5db'; ctx.strokeStyle='#9ca3af'; ctx.lineWidth=1*DPR;
     for(let y=topPad;y<=spiral.height-topPad;y+=pitch){
       ctx.beginPath(); ctx.arc(xCenter,y,holeR,0,Math.PI*2); ctx.fill(); ctx.stroke();
-      // alambre (detalle)
+      // alambre
       ctx.beginPath(); const wireR=holeR*0.55;
       ctx.arc(xCenter+(side==='left'?-holeR*0.25:holeR*0.25),y,wireR,-Math.PI/2,Math.PI/2);
       ctx.strokeStyle='#6b7280'; ctx.stroke();
     }
   }
 
-  // ====== Guía (cabecera automática + texto de práctica) ======
+  // Guía (cabecera + práctica)
   function currentGuideText(){
     const sel=ghostSelect.value;
     if(!ghostShow.checked || sel==='__none__') return '';
@@ -406,38 +359,31 @@
     return sel;
   }
   function firstBaseLineY(){
-    const top = parseFloat(pauta.dataset.topPad || 20*DPR);
-    const step= parseFloat(pauta.dataset.step   || mm2px(parseFloat(stepSel.value)));
-    return top + 2*step; // 1ª base roja
+    const top=parseFloat(pauta.dataset.topPad||20*DPR);
+    const step=parseFloat(pauta.dataset.step||mm2px(parseFloat(stepSel.value)));
+    return top+2*step;
   }
   function baseLineForGuide(){
-    const step   = parseFloat(pauta.dataset.step   || mm2px(parseFloat(stepSel.value)));
-    const period = parseFloat(pauta.dataset.period || step*4.6);
-    const idx    = parseInt(viaIndex.value || '2', 10); // por defecto 2ª
-    return firstBaseLineY() + (idx - 1) * period;
+    const step=parseFloat(pauta.dataset.step||mm2px(parseFloat(stepSel.value)));
+    const period=parseFloat(pauta.dataset.period||step*4.6);
+    const idx=parseInt(viaIndex.value||'2',10);
+    return firstBaseLineY()+(idx-1)*period;
   }
   function marginXpx(){ return parseFloat(pauta.dataset.margin || mm2px(parseFloat(margenSel.value)||0)); }
-
-  // Helpers de alineación horizontal (dejar 1 cuadro libre)
   function stepPx(){ return parseFloat(pauta.dataset.step || mm2px(parseFloat(stepSel.value))); }
-  function startTextX(){
-    const m = marginXpx();
-    return (m > 0 ? m : 0) + stepPx(); // ⬅️ un cuadro entero desde el margen
-  }
+  function startTextX(){ const m=marginXpx(); return (m>0?m:0) + stepPx(); } // 1 cuadro desde margen
 
   function drawHeaderLine(ctx){
     const header=getHeaderText();
     const fontPx=Math.max(48*DPR, parseInt(ghostSize.value,10)*0.55*DPR);
     ctx.save();
-    ctx.font = `normal ${fontPx}px "EscolarG", system-ui, sans-serif`;
+    ctx.font=`normal ${fontPx}px "EscolarG", system-ui, sans-serif`;
     ctx.textBaseline='alphabetic';
     ctx.fillStyle='rgba(17,24,39,.40)';
     ctx.strokeStyle='rgba(107,114,128,.55)';
     ctx.lineWidth=Math.max(1,Math.round(fontPx*0.06));
-    const baseY = firstBaseLineY();
-    let x = startTextX();                // ⬅️ deja el primer cuadro libre
-    ctx.fillText(header, x, baseY);
-    ctx.strokeText(header, x, baseY);
+    ctx.fillText(header, startTextX(), firstBaseLineY());
+    ctx.strokeText(header, startTextX(), firstBaseLineY());
     ctx.restore();
   }
 
@@ -446,49 +392,46 @@
     ctx.setTransform(1,0,0,1,0,0);
     ctx.clearRect(0,0,ghost.width,ghost.height);
 
-    // 1) Cabecera en la 1ª vía
+    // Cabecera (1ª vía)
     drawHeaderLine(ctx);
 
-    // 2) Texto de práctica
     const txt=currentGuideText(); if(!txt) return;
-
     const fontPx=parseInt(ghostSize.value,10)*DPR;
-    ctx.font = `normal ${fontPx}px "EscolarG", system-ui, sans-serif`;
+    ctx.font=`normal ${fontPx}px "EscolarG", system-ui, sans-serif`;
     ctx.textBaseline='alphabetic';
     ctx.fillStyle='rgba(17,24,39,.28)';
     ctx.strokeStyle='rgba(107,114,128,.6)';
     ctx.lineWidth=Math.max(1,Math.round(fontPx*0.06));
 
     const baseY=baseLineForGuide();
-
     if(inlineWord.checked){
-      let x = startTextX();              // ⬅️ deja el primer cuadro libre
+      let x=startTextX();
       for(const ch of txt){
-        ctx.fillText(ch, x, baseY);
-        ctx.strokeText(ch, x, baseY);
+        ctx.fillText(ch,x,baseY);
+        ctx.strokeText(ch,x,baseY);
         x += ctx.measureText(ch).width + fontPx*0.12;
       }
     }else{
       const total=ctx.measureText(txt).width;
-      ctx.fillText(txt, (A4.w-total)/2, baseY);
-      ctx.strokeText(txt, (A4.w-total)/2, baseY);
+      ctx.fillText(txt,(A4.w-total)/2,baseY);
+      ctx.strokeText(txt,(A4.w-total)/2,baseY);
     }
   }
 
-  // ====== Dibujo libre + Historial ======
+  // Dibujo libre (con zoom correcto)
   const dctx=draw.getContext('2d'); dctx.lineCap='round'; dctx.lineJoin='round';
-  let drawing=false, points=[];
-  const history=[]; let redoStack=[];
+  let drawing=false, points=[]; const history=[]; let redoStack=[];
 
   function setComposite(){ dctx.globalCompositeOperation=(toolSel.value==='eraser')?'destination-out':'source-over'; }
-
   function pointerPos(e){
     const r=draw.getBoundingClientRect();
-    return {x:(e.clientX-r.left)*DPR, y:(e.clientY-r.top)*DPR};
+    const scaleX=draw.width/r.width, scaleY=draw.height/r.height;
+    return { x:(e.clientX-r.left)*scaleX, y:(e.clientY-r.top)*scaleY };
   }
   function startDraw(e){
-    if (panMode.checked) return; // no dibujar en modo pan
+    if(panMode.checked) return;
     e.preventDefault(); drawing=true; redoStack.length=0;
+    try{ draw.setPointerCapture(e.pointerId); }catch{}
     points=[pointerPos(e)];
     dctx.save(); setComposite();
     dctx.lineWidth=parseFloat(penSize.value)*DPR;
@@ -498,64 +441,52 @@
   }
   function moveDraw(e){
     if(!drawing || panMode.checked) return;
-    const p = pointerPos(e);
-    const prev = points[points.length-1];
+    const p=pointerPos(e);
+    const prev=points[points.length-1];
     points.push(p);
     dctx.beginPath();
-    const mx=(prev.x+p.x)/2, my=(prev.y+p.y)/2;
-    dctx.quadraticCurveTo(prev.x,prev.y,mx,my);
+    dctx.quadraticCurveTo(prev.x,prev.y,(prev.x+p.x)/2,(prev.y+p.y)/2);
     dctx.stroke();
   }
-  function endDraw(){
+  function endDraw(e){
     if(!drawing) return;
     drawing=false;
-    history.push([{
-      mode: dctx.globalCompositeOperation,
-      size: dctx.lineWidth,
-      color:'#111',
-      path: points.slice()
-    }]);
+    history.push([{mode:dctx.globalCompositeOperation,size:dctx.lineWidth,color:'#111',path:points.slice()}]);
     dctx.restore();
+    try{ draw.releasePointerCapture(e?.pointerId); }catch{}
   }
+  draw.addEventListener('pointerdown',startDraw);
+  draw.addEventListener('pointermove',moveDraw);
+  ['pointerup','pointerleave','pointercancel'].forEach(ev=>draw.addEventListener(ev,endDraw));
+
   function redrawDrawLayer(){
     dctx.setTransform(1,0,0,1,0,0);
     dctx.clearRect(0,0,draw.width,draw.height);
-    const strokes = history.flat();
+    const strokes=history.flat();
     strokes.forEach(s=>{
       dctx.save();
       dctx.globalCompositeOperation=s.mode;
       dctx.lineWidth=s.size;
       dctx.strokeStyle=s.color;
       if(s.path.length===1){
-        const p=s.path[0];
-        dctx.beginPath(); dctx.arc(p.x,p.y,dctx.lineWidth/2,0,Math.PI*2); dctx.fill();
+        const p=s.path[0]; dctx.beginPath(); dctx.arc(p.x,p.y,dctx.lineWidth/2,0,Math.PI*2); dctx.fill();
       }else{
         dctx.beginPath();
         for(let i=0;i<s.path.length-1;i++){
           const a=s.path[i], b=s.path[i+1];
-          const mx=(a.x+b.x)/2, my=(a.y+b.y)/2;
           if(i===0) dctx.moveTo(a.x,a.y);
-          dctx.quadraticCurveTo(a.x,a.y,mx,my);
+          dctx.quadraticCurveTo(a.x,a.y,(a.x+b.x)/2,(a.y+b.y)/2);
         }
         dctx.stroke();
       }
       dctx.restore();
     });
   }
-  function undo(){ if(!history.length) return; redoStack.push(history.pop()); redrawDrawLayer(); }
-  function redo(){ if(!redoStack.length) return; history.push(redoStack.pop()); redrawDrawLayer(); }
-  function clearDraw(){ history.length=0; redoStack.length=0; redrawDrawLayer(); }
+  undoBtn.onclick=()=>{ if(!history.length) return; redoStack.push(history.pop()); redrawDrawLayer(); };
+  redoBtn.onclick=()=>{ if(!redoStack.length) return; history.push(redoStack.pop()); redrawDrawLayer(); };
+  clearBtn.onclick=()=>{ history.length=0; redoStack.length=0; redrawDrawLayer(); };
 
-  ['pointerdown','pointermove','pointerup','pointercancel','pointerleave'].forEach(ev=>{
-    draw.addEventListener(ev, e=>{
-      if(ev==='pointerdown') startDraw(e);
-      else if(ev==='pointermove') moveDraw(e);
-      else endDraw();
-    }, {passive:false});
-  });
-  toolSel.addEventListener('change', setComposite);
-
-  // ====== Exportar (incluye cuadrícula si está activada; NO anilla) ======
+  // Exportar
   function composeToCanvas(){
     const off=document.createElement('canvas'); off.width=A4.w; off.height=A4.h;
     const o=off.getContext('2d');
@@ -564,18 +495,15 @@
     o.fillStyle='#fff'; o.fillRect(0,0,off.width,off.height);
 
     // pauta + cuadrícula
-    const step  = mm2px(parseFloat(stepSel.value));
-    const top   = 20*DPR;
-    const {base, sec, margin} = palette(colorSel.value);
-    const marginPx = mm2px(parseFloat(margenSel.value)||0);
+    const step=mm2px(parseFloat(stepSel.value));
+    const top=20*DPR;
+    const {base,sec,margin}=palette(colorSel.value);
+    const marginPx=mm2px(parseFloat(margenSel.value)||0);
 
-    // cuadrícula vertical (tenue) — empieza en el margen
+    // cuadrícula
     if(showGrid.checked){
-      o.save();
-      o.globalAlpha=0.15;
-      o.lineWidth=Math.max(0.75*DPR,0.5*DPR);
-      let x=Math.max(0,marginPx);
-      while(x<A4.w-1){ strokeV(o,x,o.lineWidth,sec); x+=step; }
+      o.save(); o.globalAlpha=0.15; o.lineWidth=Math.max(0.75*DPR,0.5*DPR);
+      let x=Math.max(0,marginPx); while(x<A4.w-1){ strokeV(o,x,o.lineWidth,sec); x+=step; }
       o.restore();
     }
 
@@ -593,65 +521,64 @@
       }
     }
 
-    // cabecera (1ª vía) — ⬅️ un cuadro desde el margen
+    // cabecera (1 cuadro desde margen)
     (function drawHeaderToExport(ctx){
-      const baseY = top + 2*step;
-      const header = getHeaderText();
+      const baseY=top+2*step;
+      const header=getHeaderText();
       const fontPx=Math.max(48*DPR, parseInt(ghostSize.value,10)*0.55*DPR);
       ctx.save();
-      ctx.font = `normal ${fontPx}px "EscolarG", system-ui, sans-serif`;
+      ctx.font=`normal ${fontPx}px "EscolarG", system-ui, sans-serif`;
       ctx.textBaseline='alphabetic';
       ctx.fillStyle='rgba(17,24,39,.40)';
       ctx.strokeStyle='rgba(107,114,128,.55)';
       ctx.lineWidth=Math.max(1,Math.round(fontPx*0.06));
-      let x = (marginPx > 0 ? marginPx : 0) + step; // ⬅️ cuadro entero
-      ctx.fillText(header, x, baseY);
-      ctx.strokeText(header, x, baseY);
+      let x=(marginPx>0?marginPx:0)+step; // 1 cuadro
+      ctx.fillText(header,x,baseY);
+      ctx.strokeText(header,x,baseY);
       ctx.restore();
     })(o);
 
-    // guía de práctica — ⬅️ un cuadro desde el margen (si va en línea)
-    const fontPx=parseInt(ghostSize.value,10)*DPR;
+    // guía práctica
     const txt=currentGuideText();
     if(txt){
-      o.font = `normal ${fontPx}px "EscolarG", system-ui, sans-serif`;
+      const fontPx=parseInt(ghostSize.value,10)*DPR;
+      o.font=`normal ${fontPx}px "EscolarG", system-ui, sans-serif`;
       o.textBaseline='alphabetic';
       o.fillStyle='rgba(17,24,39,.28)';
       o.strokeStyle='rgba(107,114,128,.6)';
       o.lineWidth=Math.max(1,Math.round(fontPx*0.06));
       const period=step*4.6;
-      const baseY = top + 2*step + (parseInt(viaIndex.value||'2',10)-1)*period;
+      const baseY=top+2*step+(parseInt(viaIndex.value||'2',10)-1)*period;
+
       if(inlineWord.checked){
-        let x = (marginPx > 0 ? marginPx : 0) + step; // ⬅️ cuadro entero
+        let x=(marginPx>0?marginPx:0)+step;
         for(const ch of txt){
-          o.fillText(ch, x, baseY);
-          o.strokeText(ch, x, baseY);
-          x += o.measureText(ch).width + fontPx*0.12;
+          o.fillText(ch,x,baseY);
+          o.strokeText(ch,x,baseY);
+          x+=o.measureText(ch).width+fontPx*0.12;
         }
       }else{
         const total=o.measureText(txt).width;
-        o.fillText(txt, (A4.w-total)/2, baseY);
-        o.strokeText(txt, (A4.w-total)/2, baseY);
+        o.fillText(txt,(A4.w-total)/2,baseY);
+        o.strokeText(txt,(A4.w-total)/2,baseY);
       }
     }
 
     // trazos
-    const strokes = history.flat();
+    const strokes=history.flat();
     strokes.forEach(s=>{
       o.save();
       o.globalCompositeOperation=s.mode;
       o.lineWidth=s.size;
       o.strokeStyle=s.color;
       if(s.path.length===1){
-        const p=s.path[0];
-        o.beginPath(); o.arc(p.x,p.y,o.lineWidth/2,0,Math.PI*2); o.fill();
+        const p=s.path[0]; o.beginPath(); o.arc(p.x,p.y,o.lineWidth/2,0,Math.PI*2); o.fill();
       }else{
         o.beginPath();
         for(let i=0;i<s.path.length-1;i++){
           const a=s.path[i], b=s.path[i+1];
-          const mx=(a.x+b.x)/2, my=(a.y+b.y)/2;
           if(i===0) o.moveTo(a.x,a.y);
-          o.quadraticCurveTo(a.x,a.y,mx,my);
+          o.quadraticCurveTo(a.x,a.y,(a.x+b.x)/2,(a.y+b.y)/2);
         }
         o.stroke();
       }
@@ -661,22 +588,18 @@
     return off;
   }
 
-  // Exportar (espera la fuente)
-  savePngBtn.onclick = async ()=>{
+  savePngBtn.onclick=async()=>{
     await waitEscolar();
     const off=composeToCanvas();
     const a=document.createElement('a');
-    a.href=off.toDataURL('image/png');
-    a.download='pauta-trazos.png';
-    a.click();
+    a.href=off.toDataURL('image/png'); a.download='pauta-trazos.png'; a.click();
   };
 
-  printPdfBtn.onclick = async ()=>{
+  printPdfBtn.onclick=async()=>{
     await waitEscolar();
     const off=composeToCanvas();
     const url=off.toDataURL('image/png');
-    const w = window.open('', '_blank');
-    if(!w) return;
+    const w=window.open('', '_blank'); if(!w) return;
     w.document.write(`<!DOCTYPE html><html><head><meta charset="utf-8">
       <title>Imprimir — Pauta</title>
       <style>
@@ -697,45 +620,27 @@
     w.document.close();
   };
 
-  // ====== Vista: Zoom & Pan (solo visual; export no cambia) ======
+  // Vista: Zoom & Pan
   let viewScale=1, viewX=0, viewY=0;
-  function applyView(){
-    paper.style.transform = `translate(${viewX}px, ${viewY}px) scale(${viewScale})`;
-  }
-  function zoomBy(factor, centerX=null, centerY=null){
-    const prevScale = viewScale;
-    const newScale = Math.min(4, Math.max(0.3, viewScale * factor));
-    if (newScale === prevScale) return;
-    if (centerX!==null && centerY!==null){
-      viewX = centerX - (centerX - viewX) * (newScale/prevScale);
-      viewY = centerY - (centerY - viewY) * (newScale/prevScale);
-    }
-    viewScale = newScale;
-    applyView();
-  }
-  zoomInBtn.onclick = ()=> zoomBy(1.15, window.innerWidth/2, 200);
-  zoomOutBtn.onclick= ()=> zoomBy(1/1.15, window.innerWidth/2, 200);
+  function applyView(){ paper.style.transform=`translate(${viewX}px, ${viewY}px) scale(${viewScale})`; }
+  function zoomBy(f){ const ns=Math.min(4,Math.max(0.3,viewScale*f)); viewScale=ns; applyView(); }
+  zoomInBtn.onclick = ()=> zoomBy(1.15);
+  zoomOutBtn.onclick= ()=> zoomBy(1/1.15);
   zoomResetBtn.onclick=()=>{ viewScale=1; viewX=0; viewY=0; applyView(); };
 
-  // Pan con arrastre
   let panning=false, panStart={x:0,y:0}, viewStart={x:0,y:0};
   paper.addEventListener('pointerdown', e=>{
     if(!panMode.checked) return;
-    panning=true;
-    panStart={x:e.clientX, y:e.clientY};
-    viewStart={x:viewX, y:viewY};
-    paper.setPointerCapture(e.pointerId);
+    panning=true; panStart={x:e.clientX,y:e.clientY}; viewStart={x:viewX,y:viewY};
+    paper.setPointerCapture?.(e.pointerId);
     e.preventDefault();
   });
   paper.addEventListener('pointermove', e=>{
     if(!panning) return;
-    const dx=e.clientX-panStart.x;
-    const dy=e.clientY-panStart.y;
-    viewX=viewStart.x+dx;
-    viewY=viewStart.y+dy;
-    applyView();
+    const dx=e.clientX-panStart.x, dy=e.clientY-panStart.y;
+    viewX=viewStart.x+dx; viewY=viewStart.y+dy; applyView();
   });
-  const endPan= e=>{ if(!panning) return; panning=false; try{paper.releasePointerCapture(e.pointerId);}catch{} };
+  const endPan=e=>{ if(!panning) return; panning=false; try{paper.releasePointerCapture(e.pointerId);}catch{} };
   paper.addEventListener('pointerup', endPan);
   paper.addEventListener('pointercancel', endPan);
   paper.addEventListener('pointerleave', endPan);
@@ -745,45 +650,43 @@
     if(!e.ctrlKey) return;
     e.preventDefault();
     const factor = e.deltaY>0 ? 1/1.08 : 1.08;
-    zoomBy(factor, e.clientX, e.clientY);
+    zoomBy(factor);
   }, {passive:false});
 
-  // ====== Redibujado global ======
+  // Redibujado global
   function redrawAll(){ drawPauta(); drawGuide(); redrawDrawLayer(); drawSpiralCanvas(); }
 
-  // ====== Eventos ======
-  [stepSel,margenSel,colorSel,showPauta,showGrid].forEach(el=>el.addEventListener('change', redrawAll));
-  redrawBtn.onclick=redrawAll;
+  // Eventos
+  const onChangeRedraw=[stepSel,margenSel,colorSel,showPauta,showGrid];
+  onChangeRedraw.forEach(el=>el.addEventListener('change',redrawAll));
+  document.getElementById('redraw').onclick=redrawAll;
 
   ghostSelect.addEventListener('change',()=>{
     const v=ghostSelect.value;
     ghostText.style.display=(v==='__custom__')?'inline-block':'none';
-    if(v==='__none__'){ ghostShow.checked=false; } else { ghostShow.checked=true; }
+    ghostShow.checked=(v!=='__none__');
     redrawAll();
   });
-  [ghostText,ghostSize,ghostShow,inlineWord,viaIndex].forEach(el=>el.addEventListener('input', redrawAll));
+  [ghostText,ghostSize,ghostShow,inlineWord,viaIndex].forEach(el=>el.addEventListener('input',redrawAll));
 
-  clearBtn.onclick = clearDraw;
-  undoBtn.onclick  = undo;
-  redoBtn.onclick  = redo;
-
-  [showSpiral, spiralSide].forEach(el=>{
+  [showSpiral,spiralSide].forEach(el=>{
     el.addEventListener('change', ()=>{
-      spiral.style.left = (spiralSide.value==='left') ? px2css(-SPIRAL_W) : px2css(A4.w);
+      spiral.style.left=(spiralSide.value==='left')?px2css(-SPIRAL_W):px2css(A4.w);
       drawSpiralCanvas();
     });
   });
 
-  // ====== Init (espera a la fuente y luego pinta) ======
+  document.getElementById('tool').addEventListener('change', ()=>{/* modo cambia en startDraw */});
+
+  // Init
   (async ()=>{
     resizeA4();
-    await waitEscolar();   // asegura EscolarG cargada
-    redrawAll();           // primer dibujado ya con la fuente correcta
+    await waitEscolar();
+    redrawAll();
     applyView();
   })();
 
   window.addEventListener('resize', ()=>{ resizeA4(); redrawAll(); }, {passive:true});
-
 })();
 </script>
 </body>
