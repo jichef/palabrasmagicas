@@ -10,6 +10,7 @@
 <link rel="icon" href='data:image/svg+xml,<svg xmlns="http://www.w3.org/2000/svg"/>'>
 
 <style>
+  /* === Fuente escolar === */
   @font-face{
     font-family: 'EscolarG';
     src: url('escolar_G.woff2') format('woff2');
@@ -21,7 +22,17 @@
     --toolbar-bg:#ffffffcc; --toolbar-border:#e5e7eb;
     --pill:#f8fafc; --pill-border:#e5e7eb; --pill-hover:#eef2ff;
     --shadow:0 6px 20px rgba(0,0,0,.12);
+
+    /* ===== Variables del anillado CSS (inspiradas en tu snippet) ===== */
+    --ringW: 10mm;            /* ancho de la franja de anilla */
+    --pitch: 18mm;            /* distancia entre agujeros */
+    --holeD: 6.4mm;           /* diámetro del agujero */
+    --holeR: calc(var(--holeD) / 2);
+    --dash: 2px;              /* grosor de la línea discontinua del borde */
+    --ringBase:#f5f5f5;       /* base neutra del strip */
+    --ringEdgeShadow: rgba(0,0,0,.08);
   }
+
   *{box-sizing:border-box}
   body{
     margin:0;background:var(--bg);
@@ -29,7 +40,7 @@
     min-height:100vh;display:flex;flex-direction:column;
   }
 
-  /* Toolbar tipo app */
+  /* ===== Toolbar estilo app ===== */
   header.toolbar{
     position:sticky; top:8px; z-index:10;
     margin:8px auto; max-width:1200px; width:calc(100% - 16px);
@@ -37,11 +48,11 @@
     border:1px solid var(--toolbar-border); border-radius:14px;
     box-shadow:var(--shadow);
     padding:.5rem .75rem;
-    display:flex; gap:.75rem; align-items:center; overflow-x:auto;
-    scrollbar-width:thin;
+    display:flex; gap:.75rem; align-items:center; overflow-x:auto; scrollbar-width:thin;
   }
   header.toolbar::-webkit-scrollbar{height:8px}
   header.toolbar::-webkit-scrollbar-thumb{background:#d1d5db;border-radius:999px}
+
   .tgroup{display:flex;align-items:center;gap:.5rem;position:relative}
   .tgroup+.tgroup{margin-left:.25rem}
   .tgroup+.tgroup::before{
@@ -50,39 +61,97 @@
   }
   label{font-size:.85rem;color:#374151;white-space:nowrap}
   select,input[type="text"]{
-    border:1px solid var(--pill-border);border-radius:999px;padding:.35rem .65rem;background:var(--pill);font-size:.9rem;outline:none;
+    border:1px solid var(--pill-border);border-radius:999px;
+    padding:.35rem .65rem;background:var(--pill);font-size:.9rem;outline:none;
   }
   input[type="range"]{width:120px}
   button{
-    border:1px solid var(--pill-border);border-radius:999px;background:var(--pill);
-    padding:.45rem .7rem;cursor:pointer;transition:background .15s ease, transform .02s ease;
+    border:1px solid var(--pill-border);border-radius:999px;
+    background:var(--pill);padding:.45rem .7rem;cursor:pointer;
+    transition:background .15s ease, transform .02s ease;
   }
-  button:hover{background:var(--pill-hover)} button:active{transform:translateY(1px)}
+  button:hover{background:var(--pill-hover)}
+  button:active{transform:translateY(1px)}
   .icon{padding:.45rem .6rem;min-width:2.2rem}
 
-  /* Papel: NO usamos transform CSS; el zoom es de render */
+  /* ===== Papel (sin transform CSS; zoom/pan son de render) ===== */
   main{flex:1 1 auto;display:flex;justify-content:center;align-items:flex-start;overflow:auto;padding:8px}
+  .stage{position:relative; /* contenedor para hoja + anilla */ }
   .paper{
     position:relative;border:1px solid var(--border);border-radius:12px;
     background:#fff;box-shadow:0 4px 16px rgba(0,0,0,.1);
     touch-action:none;
   }
   canvas{position:absolute;top:0;left:0;touch-action:none}
-  #spiralCanvas{z-index:0;pointer-events:none}
   #pautaCanvas{z-index:1;pointer-events:none;border-radius:12px}
   #drawCanvas{z-index:2;border-radius:12px}
   #ghostCanvas{z-index:3;pointer-events:none;border-radius:12px}
+
+  /* ===== Anillado CSS (inspirado en tu codepen) =====
+     - Es un elemento separado .ring, pegado por fuera de la hoja.
+     - Se puede colocar a la izquierda o derecha con la clase .left / .right
+     - Se troquelan agujeros con mask y se pinta una línea discontinua sutil en el borde.
+  */
+  .ring{
+    position:absolute; top:0; height:100%;
+    width:var(--ringW);
+    pointer-events:none;
+  }
+  .ring.left  { left: calc(-1 * var(--ringW)); }
+  .ring.right { left: 100%; }
+
+  /* Capa base: tira neutra y sombra en el canto pegado a la hoja */
+  .ring::before{
+    content:""; position:absolute; inset:0;
+    background: var(--ringBase);
+  }
+  .ring.left::after,
+  .ring.right::after{
+    content:""; position:absolute; top:0; bottom:0; width:2px;
+    background: var(--ringEdgeShadow);
+  }
+  .ring.left::after{ right:2px; }   /* sombra al borde de la hoja */
+  .ring.right::after{ left:0; }
+
+  /* Troquel de agujeros con mask repetido verticalmente */
+  .ring{
+    /* Base de máscara: todo visible (#000) */
+    -webkit-mask: linear-gradient(#000 0 0);
+            mask: linear-gradient(#000 0 0);
+    /* Segundas máscaras: círculos transparentes que “quitan” material usando XOR */
+    --mask-circles:
+      radial-gradient(circle at calc(50%) calc(var(--holeR)),
+        #0000 0 calc(var(--holeR) - 1px), #000 calc(var(--holeR) + 0px)) 0 0/ 100% var(--pitch) repeat-y;
+    -webkit-mask: linear-gradient(#000 0 0), var(--mask-circles);
+            mask: linear-gradient(#000 0 0), var(--mask-circles);
+    /* Nota: algunos navegadores requieren -webkit-mask-composite, pero aquí usamos
+       dos capas donde la superior define los agujeros (#0000 dentro) y se repite.
+       Funciona de forma robusta en motores modernos. */
+  }
+
+  /* Línea discontinua muy sutil en el borde (como microperforado) */
+  .ring .dash{
+    position:absolute; top:0; bottom:0; width:calc(var(--dash));
+    background:
+      conic-gradient(at var(--dash), #0000 75%, rgba(0,0,0,.25) 0) 
+        0 -.125lh / calc(100% - var(--dash)) .5lh;
+    opacity:.35;
+  }
+  .ring.left  .dash{ right:0; }
+  .ring.right .dash{ left:0; transform:scaleX(-1); }
 </style>
 </head>
 <body>
 
 <header class="toolbar" role="toolbar" aria-label="Barra de herramientas">
+  <!-- Archivo -->
   <div class="tgroup" aria-label="Archivo">
     <button id="savePng"  class="icon" title="Guardar PNG">💾</button>
     <button id="printPdf" class="icon" title="Imprimir / PDF">🖨️</button>
     <button id="clear"    class="icon" title="Limpiar">🗑️</button>
   </div>
 
+  <!-- Edición -->
   <div class="tgroup" aria-label="Edición">
     <label>Herramienta</label>
     <select id="tool">
@@ -95,6 +164,7 @@
     <button id="redo" class="icon" title="Rehacer">↷</button>
   </div>
 
+  <!-- Pauta -->
   <div class="tgroup" aria-label="Pauta">
     <label>Paso</label>
     <select id="pautaStep">
@@ -119,6 +189,7 @@
     <button id="redraw" class="icon" title="Redibujar">🔄</button>
   </div>
 
+  <!-- Guía -->
   <div class="tgroup" aria-label="Guía">
     <label>Letra</label>
     <select id="ghostSelect">
@@ -157,15 +228,16 @@
     <label><input type="checkbox" id="inlineWord" checked/> En línea</label>
   </div>
 
+  <!-- Anilla (lado) -->
   <div class="tgroup" aria-label="Anilla">
-    <label><input type="checkbox" id="showSpiral" checked/> Anilla</label>
-    <label>Lado</label>
-    <select id="spiralSide">
+    <label>Lado anilla</label>
+    <select id="ringSide">
       <option value="left" selected>Izquierda</option>
       <option value="right">Derecha</option>
     </select>
   </div>
 
+  <!-- Vista -->
   <div class="tgroup" aria-label="Vista">
     <button id="zoomIn" class="icon" title="Acercar">＋</button>
     <button id="zoomOut" class="icon" title="Alejar">－</button>
@@ -175,11 +247,15 @@
 </header>
 
 <main>
-  <div id="paper" class="paper">
-    <canvas id="spiralCanvas"></canvas>
-    <canvas id="pautaCanvas"></canvas>
-    <canvas id="drawCanvas"></canvas>
-    <canvas id="ghostCanvas"></canvas>
+  <div class="stage" id="stage">
+    <!-- anilla CSS (fuera de la hoja, pegada) -->
+    <div id="ring" class="ring left"><div class="dash"></div></div>
+
+    <div id="paper" class="paper">
+      <canvas id="pautaCanvas"></canvas>
+      <canvas id="drawCanvas"></canvas>
+      <canvas id="ghostCanvas"></canvas>
+    </div>
   </div>
 </main>
 
@@ -189,7 +265,6 @@
   const DPR=Math.max(1,window.devicePixelRatio||1);
   const mm2px=mm=>mm*96/25.4*DPR, px2css=px=>(px/DPR)+'px';
   const A4={w:mm2px(210),h:mm2px(297)};
-  const SPIRAL_W=mm2px(10);
 
   // Fecha
   const formatTodayEs=()=>new Intl.DateTimeFormat('es-ES',{day:'numeric',month:'long',year:'numeric'}).format(new Date());
@@ -207,12 +282,12 @@
   }
 
   // DOM
+  const stage=document.getElementById('stage');
   const paper=document.getElementById('paper');
+  const ring =document.getElementById('ring');
   const pauta=document.getElementById('pautaCanvas');
   const draw =document.getElementById('drawCanvas');
   const ghost=document.getElementById('ghostCanvas');
-  const spiral=document.getElementById('spiralCanvas');
-  const cvs=[pauta,draw,ghost,spiral];
 
   // Controles
   const stepSel=document.getElementById('pautaStep');
@@ -229,9 +304,6 @@
   const inlineWord=document.getElementById('inlineWord');
   const viaIndex=document.getElementById('viaIndex');
 
-  const showSpiral=document.getElementById('showSpiral');
-  const spiralSide=document.getElementById('spiralSide');
-
   const toolSel=document.getElementById('tool');
   const penSize=document.getElementById('penSize');
   const undoBtn=document.getElementById('undo');
@@ -244,6 +316,7 @@
   const zoomOutBtn=document.getElementById('zoomOut');
   const zoomResetBtn=document.getElementById('zoomReset');
   const panMode=document.getElementById('panMode');
+  const ringSideSel=document.getElementById('ringSide');
 
   // Paletas
   function palette(mode){
@@ -261,60 +334,48 @@
     drawFn(ctx);
     ctx.restore();
   }
-
-  function clamp(v, a, b){ return Math.min(b, Math.max(a, v)); }
-  function applyViewRedraw(){ drawPauta(); drawGuide(); redrawDrawLayer(); drawSpiralCanvas(); }
+  function clamp(v,a,b){return Math.min(b,Math.max(a,v));}
+  function applyViewRedraw(){ drawPauta(); drawGuide(); redrawDrawLayer(); /* anilla CSS es independiente */ }
 
   function zoomBy(factor, focusDocX=A4.w/2, focusDocY=A4.h/2){
-    const old=viewScale;
-    const next=clamp(old*factor, 0.3, 4);
-    if(next===old) return;
-    const screenX=(focusDocX - viewOffsetX) * old;
-    const screenY=(focusDocY - viewOffsetY) * old;
-    viewScale=next;
-    viewOffsetX = focusDocX - screenX / viewScale;
-    viewOffsetY = focusDocY - screenY / viewScale;
+    const old=viewScale, next=clamp(old*factor,0.3,4); if(next===old) return;
+    const screenX=(focusDocX-viewOffsetX)*old, screenY=(focusDocY-viewOffsetY)*old;
+    viewScale=next; viewOffsetX=focusDocX - screenX/viewScale; viewOffsetY=focusDocY - screenY/viewScale;
     applyViewRedraw();
   }
+  zoomInBtn.onclick=()=>zoomBy(1.15);
+  zoomOutBtn.onclick=()=>zoomBy(1/1.15);
+  zoomResetBtn.onclick=()=>{viewScale=1; viewOffsetX=0; viewOffsetY=0; applyViewRedraw();};
 
-  zoomInBtn.onclick = ()=> zoomBy(1.15);
-  zoomOutBtn.onclick= ()=> zoomBy(1/1.15);
-  zoomResetBtn.onclick=()=>{ viewScale=1; viewOffsetX=0; viewOffsetY=0; applyViewRedraw(); };
-
-  // Pan
   let panning=false, panStart={x:0,y:0}, startOff={x:0,y:0};
   paper.addEventListener('pointerdown', e=>{
     if(!panMode.checked) return;
     panning=true; panStart={x:e.clientX,y:e.clientY}; startOff={x:viewOffsetX,y:viewOffsetY};
-    paper.setPointerCapture?.(e.pointerId);
-    e.preventDefault();
+    paper.setPointerCapture?.(e.pointerId); e.preventDefault();
   });
   paper.addEventListener('pointermove', e=>{
     if(!panning) return;
-    const dx=(e.clientX-panStart.x)/viewScale;
-    const dy=(e.clientY-panStart.y)/viewScale;
-    viewOffsetX=startOff.x-dx; viewOffsetY=startOff.y-dy;
-    applyViewRedraw();
+    const dx=(e.clientX-panStart.x)/viewScale, dy=(e.clientY-panStart.y)/viewScale;
+    viewOffsetX=startOff.x - dx; viewOffsetY=startOff.y - dy; applyViewRedraw();
   });
   const endPan=e=>{ if(!panning) return; panning=false; try{paper.releasePointerCapture(e.pointerId);}catch{} };
   paper.addEventListener('pointerup', endPan);
   paper.addEventListener('pointercancel', endPan);
   paper.addEventListener('pointerleave', endPan);
 
-  // Rueda con Ctrl: zoom al cursor
   document.addEventListener('wheel', e=>{
     if(!e.ctrlKey) return;
     e.preventDefault();
     const r=pauta.getBoundingClientRect();
     const xCanvas=(e.clientX-r.left)*(pauta.width/r.width);
     const yCanvas=(e.clientY-r.top) *(pauta.height/r.height);
-    const focusDocX = xCanvas / viewScale + viewOffsetX;
-    const focusDocY = yCanvas / viewScale + viewOffsetY;
-    zoomBy(e.deltaY>0 ? 1/1.08 : 1.08, focusDocX, focusDocY);
+    const fx = xCanvas/viewScale + viewOffsetX;
+    const fy = yCanvas/viewScale + viewOffsetY;
+    zoomBy(e.deltaY>0?1/1.08:1.08, fx, fy);
   }, {passive:false});
 
-  // ===== Tamaño papeles =====
-  function resizeA4(){
+  // ===== Tamaño hoja + posición anilla =====
+  function sizePaper(){
     [pauta,draw,ghost].forEach(cv=>{
       cv.width=A4.w; cv.height=A4.h;
       cv.style.width=px2css(A4.w); cv.style.height=px2css(A4.h);
@@ -322,9 +383,13 @@
     paper.style.width=px2css(A4.w);
     paper.style.height=px2css(A4.h);
 
-    spiral.width=SPIRAL_W; spiral.height=A4.h;
-    spiral.style.width=px2css(SPIRAL_W); spiral.style.height=px2css(A4.h);
-    spiral.style.left=(spiralSide.value==='left')?px2css(-SPIRAL_W):px2css(A4.w);
+    // Colocar la anilla según lado
+    const side=ringSideSel.value;
+    ring.classList.toggle('left',  side==='left');
+    ring.classList.toggle('right', side==='right');
+    // Alinear verticalmente con la hoja
+    const stageRect = stage.getBoundingClientRect();
+    // El ring ya usa height:100% y está pegado al borde de la hoja por CSS.
   }
 
   // ===== Pauta + cuadrícula =====
@@ -359,48 +424,20 @@
       pauta.dataset.period=String(period);
       pauta.dataset.margin=String(marginPx);
 
-      // cuadrícula
       drawGridVertical(cv, step, marginPx, sec);
 
       if(showPauta.checked){
         let y=top;
         while(y<pauta.height-top){
-          strokeH(cv,y,1*DPR,sec); y+=step;
-          strokeH(cv,y,1*DPR,sec); y+=step;
-          strokeH(cv,y,1.5*DPR,base); y+=step;
-          strokeH(cv,y,1*DPR,sec); y+=step*1.6;
+          strokeH(cv,y,1*DPR,sec); y+=step;        // ascendente
+          strokeH(cv,y,1*DPR,sec); y+=step;        // techo
+          strokeH(cv,y,1.5*DPR,base); y+=step;     // base (roja)
+          strokeH(cv,y,1*DPR,sec); y+=step*1.6;    // descendente + espacio
         }
       }
       if(marginPx>0){
         cv.beginPath(); cv.moveTo(marginPx,0); cv.lineTo(marginPx,pauta.height);
         cv.lineWidth=2*DPR; cv.strokeStyle=margin; cv.stroke();
-      }
-    });
-  }
-
-  // ===== Anilla (acompaña a la vista) =====
-  function drawSpiralCanvas(){
-    const ctx=spiral.getContext('2d');
-    ctx.setTransform(1,0,0,1,0,0);
-    ctx.clearRect(0,0,spiral.width,spiral.height);
-    if(!showSpiral.checked) return;
-
-    withView(ctx, (cv)=>{
-      const side=spiralSide.value;
-      const holeR=mm2px(3.2), pitch=mm2px(18), stripW=mm2px(10), topPad=mm2px(12);
-      const stripX=(side==='left')?-stripW:A4.w;
-      cv.fillStyle='#f5f5f5';
-      cv.fillRect(stripX,0,stripW,A4.h);
-      cv.fillStyle='rgba(0,0,0,.06)';
-      if(side==='left') cv.fillRect(stripX+stripW-2*DPR,0,2*DPR,A4.h); else cv.fillRect(stripX,0,2*DPR,A4.h);
-
-      cv.fillStyle='#d1d5db'; cv.strokeStyle='#9ca3af'; cv.lineWidth=1*DPR;
-      const xCenter=(side==='left')?(stripX+stripW-holeR*0.9):(stripX+holeR*0.9);
-      for(let y=topPad;y<=A4.h-topPad;y+=pitch){
-        cv.beginPath(); cv.arc(xCenter,y,holeR,0,Math.PI*2); cv.fill(); cv.stroke();
-        cv.beginPath(); const wireR=holeR*0.55;
-        cv.arc(xCenter+(side==='left'?-holeR*0.25:holeR*0.25),y,wireR,-Math.PI/2,Math.PI/2);
-        cv.strokeStyle='#6b7280'; cv.stroke();
       }
     });
   }
@@ -462,18 +499,16 @@
     });
   }
 
-  // ===== Dibujo libre (historial en coords documento; grosor visual constante) =====
+  // ===== Dibujo libre (historial en coords documento; grosor constante) =====
   const dctx=draw.getContext('2d'); dctx.lineCap='round'; dctx.lineJoin='round';
   let drawing=false, points=[]; const history=[]; let redoStack=[];
 
   function toolMode(){ return (toolSel.value==='eraser')?'destination-out':'source-over'; }
-
-  // Cliente -> documento
   function pointerDocPos(e){
     const r=draw.getBoundingClientRect();
-    const xCanvas=(e.clientX - r.left) * (draw.width / r.width);
-    const yCanvas=(e.clientY - r.top)  * (draw.height/ r.height);
-    return { x: xCanvas / viewScale + viewOffsetX, y: yCanvas / viewScale + viewOffsetY };
+    const xCanvas=(e.clientX-r.left)*(draw.width/r.width);
+    const yCanvas=(e.clientY-r.top) *(draw.height/r.height);
+    return { x:xCanvas/viewScale + viewOffsetX, y:yCanvas/viewScale + viewOffsetY };
   }
 
   function startDraw(e){
@@ -481,13 +516,10 @@
     e.preventDefault(); drawing=true; redoStack.length=0;
     try{ draw.setPointerCapture(e.pointerId); }catch{}
     points=[pointerDocPos(e)];
-    dctx.save();
-    dctx.globalCompositeOperation=toolMode();
+    dctx.save(); dctx.globalCompositeOperation=toolMode();
     const size=(+penSize.value)*DPR;
-
     withView(dctx, (cv)=>{
-      cv.beginPath();
-      cv.arc(points[0].x, points[0].y, (size/2)/viewScale, 0, Math.PI*2); // radio compensado
+      cv.beginPath(); cv.arc(points[0].x,points[0].y,(size/2)/viewScale,0,Math.PI*2);
       cv.fillStyle='#111'; cv.fill();
     });
   }
@@ -497,21 +529,18 @@
     const prev=points[points.length-1];
     points.push(p);
     const size=(+penSize.value)*DPR;
-
     withView(dctx, (cv)=>{
       cv.beginPath();
-      cv.moveTo(prev.x, prev.y);
-      cv.quadraticCurveTo(prev.x, prev.y, (prev.x+p.x)/2, (prev.y+p.y)/2);
-      cv.lineWidth = size / viewScale;   // grosor visual constante
-      cv.strokeStyle = '#111';
-      cv.stroke();
+      cv.moveTo(prev.x,prev.y);
+      cv.quadraticCurveTo(prev.x,prev.y,(prev.x+p.x)/2,(prev.y+p.y)/2);
+      cv.lineWidth=size/viewScale; cv.strokeStyle='#111'; cv.stroke();
     });
   }
   function endDraw(e){
     if(!drawing) return;
     drawing=false;
     const size=(+penSize.value)*DPR;
-    history.push([{ mode:toolMode(), size, color:'#111', path:points.slice() }]);
+    history.push([{mode:toolMode(), size, color:'#111', path:points.slice()}]);
     dctx.restore();
     try{ draw.releasePointerCapture(e?.pointerId); }catch{}
   }
@@ -525,12 +554,10 @@
     withView(dctx, (cv)=>{
       const strokes=history.flat();
       strokes.forEach(s=>{
-        cv.save();
-        cv.globalCompositeOperation=s.mode;
+        cv.save(); cv.globalCompositeOperation=s.mode;
         if(s.path.length===1){
           const p=s.path[0];
-          cv.beginPath();
-          cv.arc(p.x,p.y,(s.size/2)/viewScale,0,Math.PI*2);
+          cv.beginPath(); cv.arc(p.x,p.y,(s.size/2)/viewScale,0,Math.PI*2);
           cv.fillStyle=s.color; cv.fill();
         }else{
           cv.beginPath();
@@ -539,8 +566,7 @@
             if(i===0) cv.moveTo(a.x,a.y);
             cv.quadraticCurveTo(a.x,a.y,(a.x+b.x)/2,(a.y+b.y)/2);
           }
-          cv.lineWidth = s.size / viewScale; // compensación
-          cv.strokeStyle = s.color; cv.stroke();
+          cv.lineWidth=s.size/viewScale; cv.strokeStyle=s.color; cv.stroke();
         }
         cv.restore();
       });
@@ -550,7 +576,7 @@
   redoBtn.onclick=()=>{ if(!redoStack.length) return; history.push(redoStack.pop()); redrawDrawLayer(); };
   clearBtn.onclick=()=>{ history.length=0; redoStack.length=0; redrawDrawLayer(); };
 
-  // ===== Exportar (sin vista; tamaño real) =====
+  // ===== Exportar (sin anilla CSS; solo hoja) =====
   function composeToCanvas(){
     const off=document.createElement('canvas'); off.width=A4.w; off.height=A4.h;
     const o=off.getContext('2d');
@@ -561,13 +587,11 @@
     const {base,sec,margin}=palette(colorSel.value);
     const marginPx=mm2px(+margenSel.value||0);
 
-    // cuadrícula
     if(showGrid.checked){
       o.save(); o.globalAlpha=0.15; o.lineWidth=Math.max(0.75*DPR,0.5*DPR);
       let x=Math.max(0,marginPx); while(x<A4.w-1){ strokeV(o,x,o.lineWidth,sec); x+=step; }
       o.restore();
     }
-    // pauta
     if(showPauta.checked){
       let y=top;
       while(y<A4.h-top){
@@ -582,7 +606,6 @@
       }
     }
 
-    // cabecera
     (function(ctx){
       const baseY=top+2*step;
       const header=getHeaderText();
@@ -598,8 +621,12 @@
       ctx.restore();
     })(o);
 
-    // guía
-    const txt=currentGuideText();
+    const txt=(function(){
+      const sel=ghostSelect.value;
+      if(sel==='__none__' || !ghostShow.checked) return '';
+      return sel==='__custom__' ? (ghostText.value||'').trim() : sel;
+    })();
+
     if(txt){
       const fontPx=(+ghostSize.value)*DPR;
       o.font=`normal ${fontPx}px "EscolarG", system-ui, sans-serif`;
@@ -618,7 +645,6 @@
       }
     }
 
-    // trazos
     const strokes=history.flat();
     strokes.forEach(s=>{
       o.save(); o.globalCompositeOperation=s.mode;
@@ -665,8 +691,7 @@
   };
 
   // ===== Redibujado global =====
-  function redrawAll(){ drawPauta(); drawGuide(); redrawDrawLayer(); drawSpiralCanvas(); }
-
+  function redrawAll(){ drawPauta(); drawGuide(); redrawDrawLayer(); }
   [stepSel,margenSel,colorSel,showPauta,showGrid].forEach(el=>el.addEventListener('change',redrawAll));
   redrawBtn.onclick=redrawAll;
   ghostSelect.addEventListener('change',()=>{
@@ -675,22 +700,21 @@
     ghostShow.checked=(v!=='__none__'); redrawAll();
   });
   [ghostText,ghostSize,ghostShow,inlineWord,viaIndex].forEach(el=>el.addEventListener('input',redrawAll));
-  [showSpiral,spiralSide].forEach(el=>el.addEventListener('change', ()=>{ spiral.style.left=(spiralSide.value==='left')?px2css(-SPIRAL_W):px2css(A4.w); drawSpiralCanvas(); }));
 
-  document.getElementById('tool').addEventListener('change', ()=>{/* modo se aplica en startDraw/move */});
+  ringSideSel.addEventListener('change', ()=>{
+    ring.classList.toggle('left',  ringSideSel.value==='left');
+    ring.classList.toggle('right', ringSideSel.value==='right');
+  });
+
+  document.getElementById('tool').addEventListener('change', ()=>{/* se aplica en start/move */});
 
   // Init
   (async ()=>{
-    [pauta,draw,ghost].forEach(cv=>{ cv.width=A4.w; cv.height=A4.h; cv.style.width=px2css(A4.w); cv.style.height=px2css(A4.h); });
-    paper.style.width=px2css(A4.w); paper.style.height=px2css(A4.h);
-    spiral.width=SPIRAL_W; spiral.height=A4.h; spiral.style.width=px2css(SPIRAL_W); spiral.style.height=px2css(A4.h);
-    spiral.style.left=(spiralSide.value==='left')?px2css(-SPIRAL_W):px2css(A4.w);
-
+    sizePaper();
     await waitEscolar();
     redrawAll();
   })();
-
-  window.addEventListener('resize', ()=>{ resizeA4(); redrawAll(); }, {passive:true});
+  window.addEventListener('resize', ()=>{ sizePaper(); redrawAll(); }, {passive:true});
 })();
 </script>
 </body>
