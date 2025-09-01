@@ -35,7 +35,7 @@
     background:#fff;
   }
 
-  /* ===== Toolbar simple (puede partirse en 2 filas si no cabe) ===== */
+  /* ===== Toolbar (puede partirse en 2 filas si no cabe) ===== */
   header.toolbar{
     position:sticky; top:8px; z-index:10;
     margin:8px auto; max-width:1200px; width:calc(100% - 16px);
@@ -57,11 +57,21 @@
   }
   button:hover{background:var(--pill-hover)} button:active{transform:translateY(1px)}
   .icon{min-width:2rem}
+  .ghost{opacity:.6}
+
+  /* Botón flotante “Mostrar barra” (cuando la barra está oculta) */
+  #showToolbarBtn{
+    position:fixed; top:10px; left:10px; z-index:9;
+    border:1px solid var(--pill-border); border-radius:999px;
+    background:#fff; box-shadow:0 6px 20px rgba(0,0,0,.12);
+    padding:.4rem .6rem; cursor:pointer; opacity:.25;
+    display:none;
+  }
+  #showToolbarBtn:hover{opacity:.75}
 
   /* ===== Área de trabajo ===== */
   main{
     flex:1 1 auto; display:flex; justify-content:center; align-items:flex-start;
-    /* OJO: overflow hidden para que el zoom use todo el viewport sin scrolls raros */
     overflow:hidden; 
     padding:8px;
   }
@@ -70,14 +80,13 @@
   .viewport{
     position:relative;
     width:100%;
-    /* altura se fija por JS para que NUNCA sea 0 */
     overflow:hidden;
     touch-action:none;
     background:#fff;
   }
   .pageWrap{
     position:absolute; top:0; left:0;
-    transform-origin: 0 0; /* zoom desde la esquina; centramos con translate */
+    transform-origin: 0 0;
     will-change: transform;
   }
 
@@ -90,6 +99,9 @@
 </style>
 </head>
 <body>
+
+<!-- Botón flotante para re-mostrar el toolbar -->
+<button id="showToolbarBtn" title="Mostrar barra">☰</button>
 
 <header class="toolbar" role="toolbar" aria-label="Barra de herramientas" id="toolbar">
   <!-- Archivo -->
@@ -184,13 +196,14 @@
     <label title="Palabra en línea"><input type="checkbox" id="inlineWord" checked/> ≡</label>
   </div>
 
-  <!-- Anilla -->
+  <!-- Anilla + Ocultar -->
   <div class="group">
     <span class="gtitle">Anilla</span>
     <select id="ringSide" title="Lado">
       <option value="left" selected>Izq.</option>
       <option value="right">Der.</option>
     </select>
+    <button id="hideToolbar" class="ghost" title="Ocultar barra">⬆︎ Ocultar</button>
   </div>
 </header>
 
@@ -216,7 +229,7 @@
 
   // Fecha
   const formatTodayEs=()=>new Intl.DateTimeFormat('es-ES',{day:'numeric',month:'long',year:'numeric'}).format(new Date());
-  const getHeaderText=()=>`Granada ${formatTodayEs()}`;
+  const getHeaderText=()=>`Granada — ${formatTodayEs()}`;
 
   // Fuente
   let escolarReady=null;
@@ -231,6 +244,9 @@
 
   // DOM
   const toolbar=document.getElementById('toolbar');
+  const showToolbarBtn=document.getElementById('showToolbarBtn');
+  const hideToolbarBtn=document.getElementById('hideToolbar');
+
   const viewport=document.getElementById('viewport');
   const wrap=document.getElementById('pageWrap');
   const paper=document.getElementById('paper');
@@ -289,10 +305,10 @@
     wrap.style.transform = `translate(${tx}px, ${ty}px) scale(${scale})`;
   }
 
-  // Altura real del viewport bajo el toolbar (¡clave!)
+  // Altura real del viewport bajo (o sin) toolbar
   function sizeViewport(){
-    const headerH = toolbar.getBoundingClientRect().height;
-    const h = Math.max(0, window.innerHeight - headerH - 16); // 16px = padding main aprox
+    const headerH = toolbar.style.display==='none' ? 0 : toolbar.getBoundingClientRect().height;
+    const h = Math.max(0, window.innerHeight - headerH - 16); // 16px ≈ padding
     viewport.style.height = h + 'px';
   }
 
@@ -357,7 +373,7 @@
 
   // ===== Tamaño y buffers =====
   function sizePaper(){
-    cvs.forEach(cv=>{
+    [pauta,draw,ghost].forEach(cv=>{
       cv.width=A4.w; cv.height=A4.h;
       cv.style.width=px2css(A4.w); cv.style.height=px2css(A4.h);
     });
@@ -748,6 +764,22 @@
     w.document.close();
   };
 
+  // ===== Mostrar/Ocultar toolbar =====
+  function hideToolbar(){
+    toolbar.style.display='none';
+    showToolbarBtn.style.display='inline-block';
+    sizeViewport();  // recalcular altura disponible
+    fitToViewport(); // reencajar el folio
+  }
+  function showToolbar(){
+    toolbar.style.display='';
+    showToolbarBtn.style.display='none';
+    sizeViewport();
+    fitToViewport();
+  }
+  hideToolbarBtn.addEventListener('click', hideToolbar);
+  showToolbarBtn.addEventListener('click', showToolbar);
+
   // Eventos y arranque
   function redrawAll(){ drawPauta(); drawGuide(); redrawDrawLayer(); }
   [stepSel,margenSel,colorSel,showPauta,showGrid,ringSideSel].forEach(el=>el.addEventListener('change',redrawAll));
@@ -760,12 +792,12 @@
   [ghostText,ghostSize,ghostShow,inlineWord,viaIndex].forEach(el=>el.addEventListener('input',redrawAll));
 
   (async ()=>{
-    sizeViewport();              // <- 1) fija altura real bajo el toolbar
-    cvs.forEach(cv=>{ cv.width=A4.w; cv.height=A4.h; cv.style.width=px2css(A4.w); cv.style.height=px2css(A4.h); });
+    sizeViewport();              // fija altura real (con barra visible)
+    [pauta,draw,ghost].forEach(cv=>{ cv.width=A4.w; cv.height=A4.h; cv.style.width=px2css(A4.w); cv.style.height=px2css(A4.h); });
     paper.style.width=px2css(A4.w); paper.style.height=px2css(A4.h);
     await waitEscolar();
     redrawAll();
-    fitToViewport();             // <- 2) ahora sí: encaja la hoja al viewport válido
+    fitToViewport();             // encaja la hoja al viewport válido
   })();
 
   window.addEventListener('resize', ()=>{ 
