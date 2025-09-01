@@ -35,7 +35,7 @@
     background:#fff;
   }
 
-  /* ===== Toolbar simple, se parte en 2 filas si no cabe ===== */
+  /* ===== Toolbar simple (puede partirse en 2 filas si no cabe) ===== */
   header.toolbar{
     position:sticky; top:8px; z-index:10;
     margin:8px auto; max-width:1200px; width:calc(100% - 16px);
@@ -60,22 +60,24 @@
 
   /* ===== Área de trabajo ===== */
   main{
-    flex:1 1 auto;display:flex;justify-content:center;align-items:flex-start;
-    overflow:hidden; /* el zoom aprovecha todo el viewport */
+    flex:1 1 auto; display:flex; justify-content:center; align-items:flex-start;
+    /* OJO: overflow hidden para que el zoom use todo el viewport sin scrolls raros */
+    overflow:hidden; 
     padding:8px;
   }
 
   /* Contenedor que se ZOOMA y PANEA */
   .viewport{
     position:relative;
-    width:100%; height:100%;
+    width:100%;
+    /* altura se fija por JS para que NUNCA sea 0 */
     overflow:hidden;
     touch-action:none;
-    background:#fff; /* blanco sólido */
+    background:#fff;
   }
   .pageWrap{
     position:absolute; top:0; left:0;
-    transform-origin: 0 0;
+    transform-origin: 0 0; /* zoom desde la esquina; centramos con translate */
     will-change: transform;
   }
 
@@ -89,7 +91,7 @@
 </head>
 <body>
 
-<header class="toolbar" role="toolbar" aria-label="Barra de herramientas">
+<header class="toolbar" role="toolbar" aria-label="Barra de herramientas" id="toolbar">
   <!-- Archivo -->
   <div class="group">
     <span class="gtitle">Archivo</span>
@@ -228,6 +230,7 @@
   }
 
   // DOM
+  const toolbar=document.getElementById('toolbar');
   const viewport=document.getElementById('viewport');
   const wrap=document.getElementById('pageWrap');
   const paper=document.getElementById('paper');
@@ -265,7 +268,7 @@
   const panMode=document.getElementById('panMode');
   const ringSideSel=document.getElementById('ringSide');
 
-  // ===== Colores (siempre valores reales, sin 'var(...)' en canvas) =====
+  // ===== Colores (resolver variables CSS a valores reales) =====
   function palette(mode){
     const root=getComputedStyle(document.documentElement);
     const css = v => (root.getPropertyValue(v)||'').trim();
@@ -278,12 +281,19 @@
     };
   }
 
-  // ===== Estado de vista (CSS transform) =====
+  // ===== Vista (transform CSS) =====
   let scale=1;      // zoom
   let tx=0, ty=0;   // translate (px CSS)
 
   function applyTransform(){
     wrap.style.transform = `translate(${tx}px, ${ty}px) scale(${scale})`;
+  }
+
+  // Altura real del viewport bajo el toolbar (¡clave!)
+  function sizeViewport(){
+    const headerH = toolbar.getBoundingClientRect().height;
+    const h = Math.max(0, window.innerHeight - headerH - 16); // 16px = padding main aprox
+    viewport.style.height = h + 'px';
   }
 
   // Ajuste a viewport
@@ -293,7 +303,7 @@
     const a4w = A4.w/DPR; // px CSS
     const a4h = A4.h/DPR;
     const s = Math.min(vw / a4w, vh / a4h);
-    scale = s;
+    scale = s > 0 ? s : 1; // nunca 0
     tx = (vw - a4w*scale)/2;
     ty = (vh - a4h*scale)/2;
     applyTransform();
@@ -315,9 +325,9 @@
     applyTransform();
   }
 
-  zoomInBtn.onclick = ()=> zoomAt(1.15, viewport.clientWidth/2 + viewport.getBoundingClientRect().left, viewport.clientHeight/2 + viewport.getBoundingClientRect().top);
-  zoomOutBtn.onclick= ()=> zoomAt(1/1.15, viewport.clientWidth/2 + viewport.getBoundingClientRect().left, viewport.clientHeight/2 + viewport.getBoundingClientRect().top);
-  zoomResetBtn.onclick= fitToViewport;
+  zoomInBtn.onclick = ()=> zoomAt(1.15, viewport.getBoundingClientRect().left + viewport.clientWidth/2, viewport.getBoundingClientRect().top + viewport.clientHeight/2);
+  zoomOutBtn.onclick= ()=> zoomAt(1/1.15, viewport.getBoundingClientRect().left + viewport.clientWidth/2, viewport.getBoundingClientRect().top + viewport.clientHeight/2);
+  zoomResetBtn.onclick= ()=>{ sizeViewport(); fitToViewport(); };
 
   // Pan
   let panning=false, panStart={x:0,y:0}, startT={x:0,y:0};
@@ -374,7 +384,7 @@
     ctx.setTransform(1,0,0,1,0,0);
     ctx.clearRect(0,0,pauta.width,pauta.height);
 
-    // Fondo del canvas SIEMPRE blanco (no gris)
+    // Fondo del canvas SIEMPRE blanco
     ctx.fillStyle='#fff';
     ctx.fillRect(0,0,pauta.width,pauta.height);
 
@@ -750,14 +760,16 @@
   [ghostText,ghostSize,ghostShow,inlineWord,viaIndex].forEach(el=>el.addEventListener('input',redrawAll));
 
   (async ()=>{
+    sizeViewport();              // <- 1) fija altura real bajo el toolbar
     cvs.forEach(cv=>{ cv.width=A4.w; cv.height=A4.h; cv.style.width=px2css(A4.w); cv.style.height=px2css(A4.h); });
     paper.style.width=px2css(A4.w); paper.style.height=px2css(A4.h);
     await waitEscolar();
     redrawAll();
-    fitToViewport(); // ocupa todo el viewport al iniciar
+    fitToViewport();             // <- 2) ahora sí: encaja la hoja al viewport válido
   })();
 
   window.addEventListener('resize', ()=>{ 
+    sizeViewport();
     fitToViewport();
   }, {passive:true});
 })();
