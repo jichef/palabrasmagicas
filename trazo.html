@@ -23,13 +23,13 @@
     --pill:#f8fafc; --pill-border:#e5e7eb; --pill-hover:#eef2ff;
     --shadow:0 6px 20px rgba(0,0,0,.12);
 
-    /* ===== Variables del anillado CSS (inspiradas en tu snippet) ===== */
-    --ringW: 10mm;            /* ancho de la franja de anilla */
-    --pitch: 18mm;            /* distancia entre agujeros */
-    --holeD: 6.4mm;           /* diámetro del agujero */
+    /* ===== Anillado CSS ===== */
+    --ringW: 10mm;         /* ancho de franja */
+    --pitch: 18mm;         /* distancia entre agujeros */
+    --holeD: 6.4mm;        /* diámetro del agujero */
     --holeR: calc(var(--holeD) / 2);
-    --dash: 2px;              /* grosor de la línea discontinua del borde */
-    --ringBase:#f5f5f5;       /* base neutra del strip */
+    --dash: 2px;           /* grosor de línea discontinua */
+    --ringBase:#f5f5f5;    /* base neutra del strip */
     --ringEdgeShadow: rgba(0,0,0,.08);
   }
 
@@ -74,24 +74,20 @@
   button:active{transform:translateY(1px)}
   .icon{padding:.45rem .6rem;min-width:2.2rem}
 
-  /* ===== Papel (sin transform CSS; zoom/pan son de render) ===== */
+  /* ===== Escenario y hoja ===== */
   main{flex:1 1 auto;display:flex;justify-content:center;align-items:flex-start;overflow:auto;padding:8px}
-  .stage{position:relative; /* contenedor para hoja + anilla */ }
+  .stage{position:relative;}
   .paper{
     position:relative;border:1px solid var(--border);border-radius:12px;
     background:#fff;box-shadow:0 4px 16px rgba(0,0,0,.1);
-    touch-action:none;
+    touch-action:none; /* pan controlado por JS */
   }
   canvas{position:absolute;top:0;left:0;touch-action:none}
   #pautaCanvas{z-index:1;pointer-events:none;border-radius:12px}
   #drawCanvas{z-index:2;border-radius:12px}
   #ghostCanvas{z-index:3;pointer-events:none;border-radius:12px}
 
-  /* ===== Anillado CSS (inspirado en tu codepen) =====
-     - Es un elemento separado .ring, pegado por fuera de la hoja.
-     - Se puede colocar a la izquierda o derecha con la clase .left / .right
-     - Se troquelan agujeros con mask y se pinta una línea discontinua sutil en el borde.
-  */
+  /* ===== Anillado CSS ===== */
   .ring{
     position:absolute; top:0; height:100%;
     width:var(--ringW);
@@ -100,7 +96,6 @@
   .ring.left  { left: calc(-1 * var(--ringW)); }
   .ring.right { left: 100%; }
 
-  /* Capa base: tira neutra y sombra en el canto pegado a la hoja */
   .ring::before{
     content:""; position:absolute; inset:0;
     background: var(--ringBase);
@@ -110,30 +105,20 @@
     content:""; position:absolute; top:0; bottom:0; width:2px;
     background: var(--ringEdgeShadow);
   }
-  .ring.left::after{ right:2px; }   /* sombra al borde de la hoja */
+  .ring.left::after{ right:2px; }
   .ring.right::after{ left:0; }
 
   /* Troquel de agujeros con mask repetido verticalmente */
   .ring{
-    /* Base de máscara: todo visible (#000) */
-    -webkit-mask: linear-gradient(#000 0 0);
-            mask: linear-gradient(#000 0 0);
-    /* Segundas máscaras: círculos transparentes que “quitan” material usando XOR */
-    --mask-circles:
-      radial-gradient(circle at calc(50%) calc(var(--holeR)),
-        #0000 0 calc(var(--holeR) - 1px), #000 calc(var(--holeR) + 0px)) 0 0/ 100% var(--pitch) repeat-y;
-    -webkit-mask: linear-gradient(#000 0 0), var(--mask-circles);
-            mask: linear-gradient(#000 0 0), var(--mask-circles);
-    /* Nota: algunos navegadores requieren -webkit-mask-composite, pero aquí usamos
-       dos capas donde la superior define los agujeros (#0000 dentro) y se repite.
-       Funciona de forma robusta en motores modernos. */
+    -webkit-mask: linear-gradient(#000 0 0), radial-gradient(circle at 50% var(--holeR), #0000 0 calc(var(--holeR) - 1px), #000 calc(var(--holeR) + 0px)) 0 0/ 100% var(--pitch) repeat-y;
+            mask: linear-gradient(#000 0 0), radial-gradient(circle at 50% var(--holeR), #0000 0 calc(var(--holeR) - 1px), #000 calc(var(--holeR) + 0px)) 0 0/ 100% var(--pitch) repeat-y;
   }
 
-  /* Línea discontinua muy sutil en el borde (como microperforado) */
+  /* Línea discontinua sutil en el borde del strip */
   .ring .dash{
-    position:absolute; top:0; bottom:0; width:calc(var(--dash));
+    position:absolute; top:0; bottom:0; width:var(--dash);
     background:
-      conic-gradient(at var(--dash), #0000 75%, rgba(0,0,0,.25) 0) 
+      conic-gradient(at var(--dash), #0000 75%, rgba(0,0,0,.25) 0)
         0 -.125lh / calc(100% - var(--dash)) .5lh;
     opacity:.35;
   }
@@ -248,7 +233,7 @@
 
 <main>
   <div class="stage" id="stage">
-    <!-- anilla CSS (fuera de la hoja, pegada) -->
+    <!-- anilla CSS fuera de la hoja -->
     <div id="ring" class="ring left"><div class="dash"></div></div>
 
     <div id="paper" class="paper">
@@ -335,7 +320,7 @@
     ctx.restore();
   }
   function clamp(v,a,b){return Math.min(b,Math.max(a,v));}
-  function applyViewRedraw(){ drawPauta(); drawGuide(); redrawDrawLayer(); /* anilla CSS es independiente */ }
+  function applyViewRedraw(){ drawPauta(); drawGuide(); redrawDrawLayer(); /* anilla CSS se posiciona por CSS */ }
 
   function zoomBy(factor, focusDocX=A4.w/2, focusDocY=A4.h/2){
     const old=viewScale, next=clamp(old*factor,0.3,4); if(next===old) return;
@@ -374,7 +359,7 @@
     zoomBy(e.deltaY>0?1/1.08:1.08, fx, fy);
   }, {passive:false});
 
-  // ===== Tamaño hoja + posición anilla =====
+  // ===== Tamaño hoja + anilla =====
   function sizePaper(){
     [pauta,draw,ghost].forEach(cv=>{
       cv.width=A4.w; cv.height=A4.h;
@@ -383,13 +368,10 @@
     paper.style.width=px2css(A4.w);
     paper.style.height=px2css(A4.h);
 
-    // Colocar la anilla según lado
+    // lado de anilla
     const side=ringSideSel.value;
     ring.classList.toggle('left',  side==='left');
     ring.classList.toggle('right', side==='right');
-    // Alinear verticalmente con la hoja
-    const stageRect = stage.getBoundingClientRect();
-    // El ring ya usa height:100% y está pegado al borde de la hoja por CSS.
   }
 
   // ===== Pauta + cuadrícula =====
@@ -453,7 +435,7 @@
   function baseLineForGuide(){ const step=+pauta.dataset.step||mm2px(+stepSel.value); const period=+pauta.dataset.period||step*4.6; const idx=+(viaIndex.value||2); return firstBaseLineY()+(idx-1)*period; }
   function marginXpx(){ return +pauta.dataset.margin || mm2px(+margenSel.value||0); }
   function stepPx(){ return +pauta.dataset.step || mm2px(+stepSel.value); }
-  function startTextX(){ const m=marginXpx(); return (m>0?m:0)+stepPx(); }
+  function startTextX(){ const m=marginXpx(); return (m>0?m:0)+stepPx(); } /* 1 cuadro desde margen */
 
   function drawHeaderLine(cv){
     const header=getHeaderText();
@@ -576,7 +558,7 @@
   redoBtn.onclick=()=>{ if(!redoStack.length) return; history.push(redoStack.pop()); redrawDrawLayer(); };
   clearBtn.onclick=()=>{ history.length=0; redoStack.length=0; redrawDrawLayer(); };
 
-  // ===== Exportar (sin anilla CSS; solo hoja) =====
+  // ===== Exportar (solo hoja; la anilla CSS no se exporta) =====
   function composeToCanvas(){
     const off=document.createElement('canvas'); off.width=A4.w; off.height=A4.h;
     const o=off.getContext('2d');
@@ -606,6 +588,7 @@
       }
     }
 
+    // Cabecera
     (function(ctx){
       const baseY=top+2*step;
       const header=getHeaderText();
@@ -621,6 +604,7 @@
       ctx.restore();
     })(o);
 
+    // Guía
     const txt=(function(){
       const sel=ghostSelect.value;
       if(sel==='__none__' || !ghostShow.checked) return '';
@@ -645,6 +629,7 @@
       }
     }
 
+    // Trazos
     const strokes=history.flat();
     strokes.forEach(s=>{
       o.save(); o.globalCompositeOperation=s.mode;
