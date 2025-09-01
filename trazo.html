@@ -20,10 +20,10 @@
     --pill:#f8fafc; --pill-border:#e5e7eb; --pill-hover:#eef2ff;
     --shadow:0 6px 20px rgba(0,0,0,.12);
 
-    /* Agujeros (anillado sobre la hoja) */
-    --pitch-mm: 18;    /* separación entre agujeros en mm */
-    --holeD-mm: 6.4;   /* diámetro del agujero en mm */
-    --offset-mm: 5.0;  /* distancia del centro del agujero al borde de la hoja */
+    /* Agujeros (anillado sobre la hoja) — ahora más y más pequeños */
+    --pitch-mm: 12;   /* antes 18 — separación vertical entre agujeros */
+    --holeD-mm: 4.2;  /* antes 6.4 — diámetro del agujero */
+    --offset-mm: 5.0; /* distancia del centro del agujero al borde del papel */
   }
   *{box-sizing:border-box}
   body{
@@ -75,7 +75,7 @@
     touch-action:none;
   }
   canvas{position:absolute;top:0;left:0;touch-action:none}
-  #pautaCanvas{z-index:2;pointer-events:none;border-radius:12px} /* ahora incluye agujeros */
+  #pautaCanvas{z-index:2;pointer-events:none;border-radius:12px} /* incluye cuadrícula + pauta + agujeros */
   #drawCanvas {z-index:3;border-radius:12px}
   #ghostCanvas{z-index:4;pointer-events:none;border-radius:12px}
 </style>
@@ -191,7 +191,7 @@
 
 <main>
   <div id="paper" class="paper">
-    <canvas id="pautaCanvas"></canvas>  <!-- ahora incluye cuadrícula + pauta + agujeros -->
+    <canvas id="pautaCanvas"></canvas>  <!-- cuadrícula + pauta + agujeros -->
     <canvas id="drawCanvas"></canvas>
     <canvas id="ghostCanvas"></canvas>
   </div>
@@ -347,9 +347,12 @@
     const ctx=pauta.getContext('2d');
     ctx.setTransform(1,0,0,1,0,0);
     ctx.clearRect(0,0,pauta.width,pauta.height);
-    ctx.fillStyle='#fff'; ctx.fillRect(0,0,pauta.width,pauta.height);
 
     withView(ctx, (cv)=>{
+      // Pintar el papel **dentro** de la vista para que vaya unido con zoom/pan
+      cv.fillStyle='#fff';
+      cv.fillRect(0,0,A4.w,A4.h);
+
       const step=mm2px(parseFloat(stepSel.value));
       const top=20*DPR;
       const period=step*4.6;
@@ -388,9 +391,9 @@
         cv.lineWidth=2*DPR; cv.strokeStyle=margin; cv.stroke();
       }
 
-      // ===== Agujeros “troquelados” dentro de este MISMO canvas =====
-      const pitch=mm2px(parseFloat(getComputedStyle(document.documentElement).getPropertyValue('--pitch-mm'))||18);
-      const holeR=mm2px(parseFloat(getComputedStyle(document.documentElement).getPropertyValue('--holeD-mm'))||6.4)/2;
+      // ===== Agujeros “troquelados” dentro de ESTE canvas =====
+      const pitch=mm2px(parseFloat(getComputedStyle(document.documentElement).getPropertyValue('--pitch-mm'))||12);
+      const holeR=mm2px(parseFloat(getComputedStyle(document.documentElement).getPropertyValue('--holeD-mm'))||4.2)/2;
       const offset=mm2px(parseFloat(getComputedStyle(document.documentElement).getPropertyValue('--offset-mm'))||5.0);
       const side=ringSideSel.value;
       const topPad=mm2px(12);
@@ -416,9 +419,9 @@
       cv.save();
       for(let y=topPad; y<=A4.h-topPad; y+=pitch){
         // contorno
-        cv.beginPath(); cv.arc(cx,y,holeR-0.25*DPR,0,Math.PI*2);
+        cv.beginPath(); cv.arc(cx,y,Math.max(holeR-0.25*DPR, 0),0,Math.PI*2);
         cv.lineWidth=0.75*DPR; cv.strokeStyle='rgba(0,0,0,.45)'; cv.globalAlpha=0.35; cv.stroke();
-        // viñeteado interno
+        // viñeteado interior
         const g=cv.createRadialGradient(cx,y, holeR*0.55, cx,y, holeR);
         g.addColorStop(0,'rgba(0,0,0,0)'); g.addColorStop(1,'rgba(0,0,0,.08)');
         cv.beginPath(); cv.arc(cx,y,holeR,0,Math.PI*2); cv.fillStyle=g; cv.fill();
@@ -562,6 +565,9 @@
   clearBtn.onclick=()=>{ history.length=0; redoStack.length=0; redrawDrawLayer(); };
 
   // ===== Exportar (pauta+agujeros unidos) =====
+  function strokeH(o,y,w,c){ o.beginPath(); o.moveTo(0,y); o.lineTo(A4.w,y); o.lineWidth=w; o.strokeStyle=c; o.stroke(); }
+  function strokeV(o,x,w,c){ o.beginPath(); o.moveTo(x,0); o.lineTo(x,A4.h); o.lineWidth=w; o.strokeStyle=c; o.stroke(); }
+
   function composeToCanvas(){
     const off=document.createElement('canvas'); off.width=A4.w; off.height=A4.h;
     const o=off.getContext('2d');
@@ -654,10 +660,10 @@
       o.restore();
     });
 
-    // Agujeros (mismo proceso que en pantalla, sobre la misma hoja)
+    // Agujeros (mismo proceso que en pantalla)
     (function(ctx){
-      const pitch=mm2px(parseFloat(getComputedStyle(document.documentElement).getPropertyValue('--pitch-mm'))||18);
-      const holeR=mm2px(parseFloat(getComputedStyle(document.documentElement).getPropertyValue('--holeD-mm'))||6.4)/2;
+      const pitch=mm2px(parseFloat(getComputedStyle(document.documentElement).getPropertyValue('--pitch-mm'))||12);
+      const holeR=mm2px(parseFloat(getComputedStyle(document.documentElement).getPropertyValue('--holeD-mm'))||4.2)/2;
       const offset=mm2px(parseFloat(getComputedStyle(document.documentElement).getPropertyValue('--offset-mm'))||5.0);
       const side=ringSideSel.value;
       const topPad=mm2px(12);
@@ -679,7 +685,7 @@
 
       // borde + viñeteado
       for(let y=topPad; y<=A4.h-topPad; y+=pitch){
-        ctx.beginPath(); ctx.arc(cx,y,holeR-0.25*DPR,0,Math.PI*2);
+        ctx.beginPath(); ctx.arc(cx,y,Math.max(holeR-0.25*DPR,0),0,Math.PI*2);
         ctx.lineWidth=0.75*DPR; ctx.strokeStyle='rgba(0,0,0,.45)'; ctx.globalAlpha=0.35; ctx.stroke();
         const gr=ctx.createRadialGradient(cx,y, holeR*0.55, cx,y, holeR);
         gr.addColorStop(0,'rgba(0,0,0,0)'); gr.addColorStop(1,'rgba(0,0,0,.08)');
