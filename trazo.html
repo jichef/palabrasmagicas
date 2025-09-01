@@ -34,10 +34,10 @@
     margin:0;
     font-family:system-ui,-apple-system,Segoe UI,Roboto,Helvetica,Arial;
     min-height:100vh;display:flex;flex-direction:column;
-    background:var(--bg); /* se ve solo mientras carga el canvas */
+    background:var(--bg); /* solo mientras carga */
   }
 
-  /* ===== Toolbar simple en dos filas auto ===== */
+  /* ===== Toolbar simple en dos filas ===== */
   header.toolbar{
     position:sticky; top:8px; z-index:10;
     margin:8px auto; max-width:1200px; width:calc(100% - 16px);
@@ -46,7 +46,7 @@
     padding:.45rem .55rem;
     display:flex; flex-wrap:wrap; gap:.5rem .75rem; align-items:center;
   }
-  .group{display:flex; align-items:center; gap:.45rem; background:#fff}
+  .group{display:flex; align-items:center; gap:.45rem}
   .gtitle{font-size:.78rem; font-weight:600; color:#374151; padding:0 .35rem}
   select,input[type="text"]{
     border:1px solid var(--pill-border);border-radius:999px;
@@ -63,7 +63,6 @@
   /* ===== Escenario / Hoja ===== */
   main{flex:1 1 auto;display:flex;justify-content:center;align-items:flex-start;overflow:auto;padding:8px}
   .paper{ position:relative; touch-action:none; }
-  /* sin bordes/sombras aquí; todo va dentro del canvas para que acompañe el zoom/pan */
   canvas{position:absolute;top:0;left:0;touch-action:none}
   #pautaCanvas{z-index:2;pointer-events:none}
   #drawCanvas {z-index:3}
@@ -250,7 +249,7 @@
     return {base:'#ef4444', sec:'#3b82f6', margin:'#10b981'};
   }
 
-  // ===== Vista (zoom/pan reales) =====
+  // ===== Vista (zoom/pan con límites) =====
   let viewScale=1, viewOffsetX=0, viewOffsetY=0; // coords documento
 
   function withView(ctx, drawFn){
@@ -270,16 +269,38 @@
     ctx.closePath();
   }
   function clamp(v,a,b){return Math.min(b,Math.max(a,v));}
+
+  // Mantén la hoja dentro del canvas (no permitir vacíos grises “por encima”)
+  function clampView(){
+    const vw = A4.w / viewScale;
+    const vh = A4.h / viewScale;
+    if (vw <= A4.w){
+      viewOffsetX = clamp(viewOffsetX, 0, A4.w - vw);
+    }else{
+      viewOffsetX = (A4.w - vw)/2; // centrar cuando está más pequeña que el lienzo
+    }
+    if (vh <= A4.h){
+      viewOffsetY = clamp(viewOffsetY, 0, A4.h - vh);
+    }else{
+      viewOffsetY = (A4.h - vh)/2;
+    }
+  }
+
   function applyViewRedraw(){ drawPauta(); drawGuide(); redrawDrawLayer(); }
+
   function zoomBy(factor, focusDocX=A4.w/2, focusDocY=A4.h/2){
     const old=viewScale, next=clamp(old*factor,0.3,4); if(next===old) return;
+    // mantener el foco
     const screenX=(focusDocX-viewOffsetX)*old, screenY=(focusDocY-viewOffsetY)*old;
-    viewScale=next; viewOffsetX=focusDocX - screenX/viewScale; viewOffsetY=focusDocY - screenY/viewScale;
+    viewScale=next;
+    viewOffsetX=focusDocX - screenX/viewScale;
+    viewOffsetY=focusDocY - screenY/viewScale;
+    clampView();
     applyViewRedraw();
   }
   zoomInBtn.onclick=()=>zoomBy(1.15);
   zoomOutBtn.onclick=()=>zoomBy(1/1.15);
-  zoomResetBtn.onclick=()=>{viewScale=1; viewOffsetX=0; viewOffsetY=0; applyViewRedraw();};
+  zoomResetBtn.onclick=()=>{viewScale=1; viewOffsetX=0; viewOffsetY=0; clampView(); applyViewRedraw();};
 
   // Pan
   let panning=false, panStart={x:0,y:0}, startOff={x:0,y:0};
@@ -291,7 +312,9 @@
   paper.addEventListener('pointermove', e=>{
     if(!panning) return;
     const dx=(e.clientX-panStart.x)/viewScale, dy=(e.clientY-panStart.y)/viewScale;
-    viewOffsetX=startOff.x - dx; viewOffsetY=startOff.y - dy; applyViewRedraw();
+    viewOffsetX=startOff.x - dx; viewOffsetY=startOff.y - dy;
+    clampView();
+    applyViewRedraw();
   });
   const endPan=e=>{ if(!panning) return; panning=false; try{paper.releasePointerCapture(e.pointerId);}catch{} };
   paper.addEventListener('pointerup', endPan);
@@ -320,7 +343,7 @@
     paper.style.height=px2css(A4.h);
   }
 
-  // ===== Pauta + cuadrícula + agujeros + “folio” + “mesa” =====
+  // ===== Pauta + cuadrícula + agujeros + “folio” + “mesa” en el MISMO flujo =====
   function strokeH(ctx,y,w,c){ ctx.beginPath(); ctx.moveTo(0,y); ctx.lineTo(A4.w,y); ctx.lineWidth=w; ctx.strokeStyle=c; ctx.stroke(); }
   function strokeV(ctx,x,w,c){ ctx.beginPath(); ctx.moveTo(x,0); ctx.lineTo(x,A4.h); ctx.lineWidth=w; ctx.strokeStyle=c; ctx.stroke(); }
 
@@ -329,12 +352,13 @@
     ctx.setTransform(1,0,0,1,0,0);
     ctx.clearRect(0,0,pauta.width,pauta.height);
 
-    /* 0) “Mesa” gris (fondo del mismo canvas) */
-    ctx.fillStyle=getComputedStyle(document.documentElement).getPropertyValue('--bg').trim() || '#f3f4f6';
-    ctx.fillRect(0,0,pauta.width,pauta.height);
-
     withView(ctx, (cv)=>{
-      // (1) Sombra del folio (transformada)
+      // (0) MESA gris detrás del folio y moviéndose con él (rectángulo grande)
+      const bg = getComputedStyle(document.documentElement).getPropertyValue('--bg').trim() || '#f3f4f6';
+      cv.fillStyle=bg;
+      cv.fillRect(-A4.w, -A4.h, A4.w*3, A4.h*3); // grande para que no “asome” nada
+
+      // (1) Sombra del folio
       cv.save();
       roundedRectPath(cv, 0,0, A4.w,A4.h, RADIUS);
       cv.shadowColor='var(--paper-shadow)';
@@ -723,24 +747,24 @@
 
   // Eventos y arranque
   function redrawAll(){ drawPauta(); drawGuide(); redrawDrawLayer(); }
-  [stepSel,margenSel,colorSel,showPauta,showGrid].forEach(el=>el.addEventListener('change',redrawAll));
-  redrawBtn.onclick=redrawAll;
+  [stepSel,margenSel,colorSel,showPauta,showGrid].forEach(el=>el.addEventListener('change',()=>{clampView(); redrawAll();}));
+  redrawBtn.onclick=()=>{clampView(); redrawAll();};
   ghostSelect.addEventListener('change',()=>{
     const v=ghostSelect.value;
     ghostText.style.display=(v==='__custom__')?'inline-block':'none';
-    ghostShow.checked=(v!=='__none__'); redrawAll();
+    ghostShow.checked=(v!=='__none__'); clampView(); redrawAll();
   });
-  [ghostText,ghostSize,ghostShow,inlineWord,viaIndex].forEach(el=>el.addEventListener('input',redrawAll));
-  ringSideSel.addEventListener('change', redrawAll);
-  document.getElementById('tool').addEventListener('change', ()=>{});
+  [ghostText,ghostSize,ghostShow,inlineWord,viaIndex].forEach(el=>el.addEventListener('input',()=>{clampView(); redrawAll();}));
+  ringSideSel.addEventListener('change', ()=>{clampView(); redrawAll();});
 
   (async ()=>{
     cvs.forEach(cv=>{ cv.width=A4.w; cv.height=A4.h; cv.style.width=px2css(A4.w); cv.style.height=px2css(A4.h); });
     paper.style.width=px2css(A4.w); paper.style.height=px2css(A4.h);
+    clampView();
     await waitEscolar();
     redrawAll();
   })();
-  window.addEventListener('resize', ()=>{ cvs.forEach(cv=>{ cv.width=A4.w; cv.height=A4.h; cv.style.width=px2css(A4.w); cv.style.height=px2css(A4.h); }); redrawAll(); }, {passive:true});
+  window.addEventListener('resize', ()=>{ cvs.forEach(cv=>{ cv.width=A4.w; cv.height=A4.h; cv.style.width=px2css(A4.w); cv.style.height=px2css(A4.h); }); clampView(); redrawAll(); }, {passive:true});
 })();
 </script>
 </body>
