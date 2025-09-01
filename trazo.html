@@ -20,9 +20,9 @@
     --pill:#f8fafc; --pill-border:#e5e7eb; --pill-hover:#eef2ff;
     --shadow:0 6px 20px rgba(0,0,0,.12);
 
-    /* Agujeros (anillado sobre la hoja) — ahora más y más pequeños */
-    --pitch-mm: 12;   /* antes 18 — separación vertical entre agujeros */
-    --holeD-mm: 4.2;  /* antes 6.4 — diámetro del agujero */
+    /* Agujeros (anillado sobre la hoja) — más y más pequeños */
+    --pitch-mm: 12;   /* separación vertical entre agujeros */
+    --holeD-mm: 4.2;  /* diámetro del agujero */
     --offset-mm: 5.0; /* distancia del centro del agujero al borde del papel */
   }
   *{box-sizing:border-box}
@@ -32,166 +32,150 @@
     min-height:100vh;display:flex;flex-direction:column;
   }
 
-  /* ===== Toolbar en dos filas ===== */
-  .toolbar-wrap{
+  /* ===== Toolbar único y compacto ===== */
+  header.toolbar{
     position:sticky; top:8px; z-index:10;
     margin:8px auto; max-width:1200px; width:calc(100% - 16px);
-    display:flex; flex-direction:column; gap:8px;
-  }
-  header.toolbar{
     background:var(--toolbar-bg); backdrop-filter:saturate(1.2) blur(6px);
-    border:1px solid var(--toolbar-border); border-radius:14px;
+    border:1px solid var(--toolbar-border); border-radius:12px;
     box-shadow:var(--shadow);
-    padding:.5rem .75rem;
-    display:flex; gap:.75rem; align-items:center; overflow-x:auto; scrollbar-width:thin;
+    padding:.35rem .5rem;
+    display:flex; gap:.5rem; align-items:center; overflow-x:auto; scrollbar-width:thin;
   }
   header.toolbar::-webkit-scrollbar{height:8px}
   header.toolbar::-webkit-scrollbar-thumb{background:#d1d5db;border-radius:999px}
-  .trow{display:flex; gap:.75rem; align-items:center}
-  .tgroup{display:flex;align-items:center;gap:.5rem;position:relative}
-  .tgroup+.tgroup{margin-left:.25rem}
+  .tgroup{display:flex;align-items:center;gap:.4rem;position:relative}
   .tgroup+.tgroup::before{
-    content:"";position:absolute;left:-.375rem;top:6px;bottom:6px;width:1px;
+    content:"";position:absolute;left:-.25rem;top:6px;bottom:6px;width:1px;
     background:linear-gradient(to bottom,transparent,#e5e7eb,transparent);
   }
-  label{font-size:.85rem;color:#374151;white-space:nowrap}
+  .sr-only{position:absolute!important;width:1px;height:1px;padding:0;margin:-1px;overflow:hidden;clip:rect(0,0,0,0);white-space:nowrap;border:0}
   select,input[type="text"]{
     border:1px solid var(--pill-border);border-radius:999px;
-    padding:.35rem .65rem;background:var(--pill);font-size:.9rem;outline:none;
+    padding:.3rem .55rem;background:var(--pill);font-size:.85rem;outline:none;
   }
-  input[type="range"]{width:120px}
+  input[type="range"]{width:100px}
   button{
     border:1px solid var(--pill-border);border-radius:999px;background:var(--pill);
-    padding:.45rem .7rem;cursor:pointer;transition:background .15s ease, transform .02s ease;
+    padding:.35rem .55rem;cursor:pointer;transition:background .15s ease, transform .02s ease;
+    font-size:1rem; line-height:1;
   }
   button:hover{background:var(--pill-hover)} button:active{transform:translateY(1px)}
-  .icon{padding:.45rem .6rem;min-width:2.2rem}
+  .icon{padding:.35rem .5rem;min-width:2rem}
 
   /* Escenario / Hoja */
   main{flex:1 1 auto;display:flex;justify-content:center;align-items:flex-start;overflow:auto;padding:8px}
-  .paper{
-    position:relative;border:1px solid var(--border);border-radius:12px; /* coincide con clip */
-    background:#fff;box-shadow:0 4px 16px rgba(0,0,0,.1);
-    touch-action:none;
-  }
+  .paper{position:relative; touch-action:none;}
+  /* OJO: sin borde/sombra aquí — los dibujo en canvas para que hagan zoom/pan */
   canvas{position:absolute;top:0;left:0;touch-action:none}
-  #pautaCanvas{z-index:2;pointer-events:none;border-radius:12px} /* incluye cuadrícula + pauta + agujeros */
-  #drawCanvas {z-index:3;border-radius:12px}
-  #ghostCanvas{z-index:4;pointer-events:none;border-radius:12px}
+  #pautaCanvas{z-index:2;pointer-events:none}
+  #drawCanvas {z-index:3}
+  #ghostCanvas{z-index:4;pointer-events:none}
 </style>
 </head>
 <body>
 
-<div class="toolbar-wrap">
-  <!-- Fila 1 -->
-  <header class="toolbar" role="toolbar" aria-label="Barra de herramientas fila 1">
-    <div class="trow">
-      <div class="tgroup" aria-label="Archivo">
-        <button id="savePng"  class="icon" title="Guardar PNG">💾</button>
-        <button id="printPdf" class="icon" title="Imprimir / PDF">🖨️</button>
-        <button id="clear"    class="icon" title="Limpiar">🗑️</button>
-      </div>
+<header class="toolbar" role="toolbar" aria-label="Barra de herramientas">
+  <div class="tgroup" aria-label="Archivo">
+    <button id="savePng"  class="icon" title="Guardar PNG">💾</button>
+    <button id="printPdf" class="icon" title="Imprimir / PDF">🖨️</button>
+    <button id="clear"    class="icon" title="Limpiar">🗑️</button>
+  </div>
 
-      <div class="tgroup" aria-label="Edición">
-        <label>Herramienta</label>
-        <select id="tool">
-          <option value="pen" selected>✏️ Lápiz</option>
-          <option value="eraser">🩹 Goma</option>
-        </select>
-        <label>Grosor</label>
-        <input id="penSize" type="range" min="1" max="64" value="1" />
-        <button id="undo" class="icon" title="Deshacer">↶</button>
-        <button id="redo" class="icon" title="Rehacer">↷</button>
-      </div>
+  <div class="tgroup" aria-label="Edición">
+    <label class="sr-only" for="tool">Herramienta</label>
+    <select id="tool" title="Herramienta">
+      <option value="pen" selected>✏️ Lápiz</option>
+      <option value="eraser">🩹 Goma</option>
+    </select>
+    <label class="sr-only" for="penSize">Grosor</label>
+    <input id="penSize" type="range" min="1" max="64" value="40" title="Grosor del trazo" />
+    <button id="undo" class="icon" title="Deshacer">↶</button>
+    <button id="redo" class="icon" title="Rehacer">↷</button>
+  </div>
 
-      <div class="tgroup" aria-label="Vista">
-        <button id="zoomIn" class="icon" title="Acercar">＋</button>
-        <button id="zoomOut" class="icon" title="Alejar">－</button>
-        <button id="zoomReset" class="icon" title="Restablecer vista">⟲</button>
-        <label><input type="checkbox" id="panMode" /> 👋 Pan</label>
-      </div>
-    </div>
-  </header>
+  <div class="tgroup" aria-label="Vista">
+    <button id="zoomIn" class="icon" title="Acercar">＋</button>
+    <button id="zoomOut" class="icon" title="Alejar">－</button>
+    <button id="zoomReset" class="icon" title="Restablecer vista">⟲</button>
+    <label title="Modo Pan"><input type="checkbox" id="panMode" /> 👋</label>
+  </div>
 
-  <!-- Fila 2 -->
-  <header class="toolbar" role="toolbar" aria-label="Barra de herramientas fila 2">
-    <div class="trow">
-      <div class="tgroup" aria-label="Pauta">
-        <label>Paso</label>
-        <select id="pautaStep">
-          <option value="2.5">2.5 mm</option>
-          <option value="3">3 mm</option>
-          <option value="4" selected>4 mm</option>
-        </select>
-        <label>Margen</label>
-        <select id="margenSel">
-          <option value="0">Sin margen</option>
-          <option value="10">10 mm</option>
-          <option value="15" selected>15 mm</option>
-        </select>
-        <label>Color</label>
-        <select id="colorPauta">
-          <option value="clasica">Clásica</option>
-          <option value="suave" selected>Suave</option>
-          <option value="alto">Alto contraste</option>
-        </select>
-        <label><input type="checkbox" id="showPauta" checked/> Pauta</label>
-        <label><input type="checkbox" id="showGrid" checked/> Cuadrícula</label>
-        <button id="redraw" class="icon" title="Redibujar">🔄</button>
-      </div>
+  <div class="tgroup" aria-label="Pauta">
+    <label class="sr-only" for="pautaStep">Paso</label>
+    <select id="pautaStep" title="Paso de la pauta (mm)">
+      <option value="2.5">2.5 mm</option>
+      <option value="3">3 mm</option>
+      <option value="4" selected>4 mm</option>
+    </select>
+    <label class="sr-only" for="margenSel">Margen</label>
+    <select id="margenSel" title="Margen (mm)">
+      <option value="0">Sin margen</option>
+      <option value="10">10 mm</option>
+      <option value="15" selected>15 mm</option>
+    </select>
+    <label class="sr-only" for="colorPauta">Color</label>
+    <select id="colorPauta" title="Color de la pauta">
+      <option value="clasica">Clásica</option>
+      <option value="suave" selected>Suave</option>
+      <option value="alto">Alto contraste</option>
+    </select>
+    <label title="Mostrar pauta"><input type="checkbox" id="showPauta" checked/> P</label>
+    <label title="Mostrar cuadrícula"><input type="checkbox" id="showGrid" checked/> ☐</label>
+    <button id="redraw" class="icon" title="Redibujar">🔄</button>
+  </div>
 
-      <div class="tgroup" aria-label="Guía">
-        <label>Letra</label>
-        <select id="ghostSelect">
-          <optgroup label="Minúsculas">
-            <option>a</option><option>b</option><option>c</option><option>d</option><option>e</option>
-            <option>f</option><option>g</option><option>h</option><option>i</option><option>j</option>
-            <option>k</option><option>l</option><option>m</option><option>n</option><option>ñ</option>
-            <option>o</option><option>p</option><option>q</option><option>r</option><option>s</option>
-            <option>t</option><option>u</option><option>v</option><option>w</option><option>x</option>
-            <option>y</option><option>z</option>
-          </optgroup>
-          <optgroup label="Mayúsculas">
-            <option>A</option><option>B</option><option>C</option><option>D</option><option>E</option>
-            <option>F</option><option>G</option><option>H</option><option>I</option><option>J</option>
-            <option>K</option><option>L</option><option>M</option><option>N</option><option>Ñ</option>
-            <option>O</option><option>P</option><option>Q</option><option>R</option><option>S</option>
-            <option>T</option><option>U</option><option>V</option><option>W</option><option>X</option>
-            <option>Y</option><option>Z</option>
-          </optgroup>
-          <optgroup label="Opciones">
-            <option value="__custom__">Libre (texto)</option>
-            <option value="__none__">Ocultar guía</option>
-          </optgroup>
-        </select>
-        <input id="ghostText" type="text" placeholder="Escribe aquí…" style="display:none;width:12rem" />
-        <label>Tamaño</label><input id="ghostSize" type="range" min="40" max="300" value="40" />
-        <label>Vía</label>
-        <select id="viaIndex">
-          <option value="1">1ª</option>
-          <option value="2" selected>2ª</option>
-          <option value="3">3ª</option>
-          <option value="4">4ª</option>
-          <option value="5">5ª</option>
-        </select>
-        <label><input type="checkbox" id="ghostShow" checked/> Mostrar</label>
-        <label><input type="checkbox" id="inlineWord" checked/> En línea</label>
-      </div>
+  <div class="tgroup" aria-label="Guía">
+    <label class="sr-only" for="ghostSelect">Letra</label>
+    <select id="ghostSelect" title="Letra guía">
+      <optgroup label="Minúsculas">
+        <option>a</option><option>b</option><option>c</option><option>d</option><option>e</option>
+        <option>f</option><option>g</option><option>h</option><option>i</option><option>j</option>
+        <option>k</option><option>l</option><option>m</option><option>n</option><option>ñ</option>
+        <option>o</option><option>p</option><option>q</option><option>r</option><option>s</option>
+        <option>t</option><option>u</option><option>v</option><option>w</option><option>x</option>
+        <option>y</option><option>z</option>
+      </optgroup>
+      <optgroup label="Mayúsculas">
+        <option>A</option><option>B</option><option>C</option><option>D</option><option>E</option>
+        <option>F</option><option>G</option><option>H</option><option>I</option><option>J</option>
+        <option>K</option><option>L</option><option>M</option><option>N</option><option>Ñ</option>
+        <option>O</option><option>P</option><option>Q</option><option>R</option><option>S</option>
+        <option>T</option><option>U</option><option>V</option><option>W</option><option>X</option>
+        <option>Y</option><option>Z</option>
+      </optgroup>
+      <optgroup label="Opciones">
+        <option value="__custom__">Libre (texto)</option>
+        <option value="__none__">Ocultar guía</option>
+      </optgroup>
+    </select>
+    <input id="ghostText" type="text" placeholder="Escribe…" style="display:none;width:10rem" title="Texto libre" />
+    <label class="sr-only" for="ghostSize">Tamaño guía</label>
+    <input id="ghostSize" type="range" min="40" max="300" value="40" title="Tamaño de la guía" />
+    <label class="sr-only" for="viaIndex">Vía</label>
+    <select id="viaIndex" title="Línea (vía)">
+      <option value="1">1ª</option>
+      <option value="2" selected>2ª</option>
+      <option value="3">3ª</option>
+      <option value="4">4ª</option>
+      <option value="5">5ª</option>
+    </select>
+    <label title="Mostrar guía"><input type="checkbox" id="ghostShow" checked/> 👁️</label>
+    <label title="Palabra en línea"><input type="checkbox" id="inlineWord" checked/> ≡</label>
+  </div>
 
-      <div class="tgroup" aria-label="Anilla">
-        <label>Lado anilla</label>
-        <select id="ringSide">
-          <option value="left" selected>Izquierda</option>
-          <option value="right">Derecha</option>
-        </select>
-      </div>
-    </div>
-  </header>
-</div>
+  <div class="tgroup" aria-label="Anilla">
+    <label class="sr-only" for="ringSide">Lado anilla</label>
+    <select id="ringSide" title="Lado de la anilla">
+      <option value="left" selected>Izq.</option>
+      <option value="right">Der.</option>
+    </select>
+  </div>
+</header>
 
 <main>
   <div id="paper" class="paper">
-    <canvas id="pautaCanvas"></canvas>  <!-- cuadrícula + pauta + agujeros -->
+    <canvas id="pautaCanvas"></canvas>  <!-- papel + cuadrícula + pauta + agujeros + canto -->
     <canvas id="drawCanvas"></canvas>
     <canvas id="ghostCanvas"></canvas>
   </div>
@@ -270,13 +254,8 @@
   function withView(ctx, drawFn){
     ctx.save();
     ctx.setTransform(viewScale,0,0,viewScale, -viewOffsetX*viewScale, -viewOffsetY*viewScale);
-    clipPage(ctx); // clip de hoja
-    drawFn(ctx);
+    drawFn(ctx);     // OJO: el clip a la página lo hago dentro cuando convenga
     ctx.restore();
-  }
-  function clipPage(ctx){
-    roundedRectPath(ctx, 0,0, A4.w,A4.h, RADIUS);
-    ctx.clip();
   }
   function roundedRectPath(ctx,x,y,w,h,r){
     const rr=Math.min(r, w/2, h/2);
@@ -339,7 +318,7 @@
     paper.style.height=px2css(A4.h);
   }
 
-  // ===== Pauta + cuadrícula + agujeros (todo unido) =====
+  // ===== Pauta + cuadrícula + agujeros + “folio” (todo unido) =====
   function strokeH(ctx,y,w,c){ ctx.beginPath(); ctx.moveTo(0,y); ctx.lineTo(A4.w,y); ctx.lineWidth=w; ctx.strokeStyle=c; ctx.stroke(); }
   function strokeV(ctx,x,w,c){ ctx.beginPath(); ctx.moveTo(x,0); ctx.lineTo(x,A4.h); ctx.lineWidth=w; ctx.strokeStyle=c; ctx.stroke(); }
 
@@ -349,9 +328,23 @@
     ctx.clearRect(0,0,pauta.width,pauta.height);
 
     withView(ctx, (cv)=>{
-      // Pintar el papel **dentro** de la vista para que vaya unido con zoom/pan
-      cv.fillStyle='#fff';
-      cv.fillRect(0,0,A4.w,A4.h);
+      // (1) Sombra del folio (fuera de clip, pero transformada)
+      cv.save();
+      roundedRectPath(cv, 0,0, A4.w,A4.h, RADIUS);
+      cv.shadowColor='rgba(0,0,0,.15)';
+      cv.shadowBlur=12*DPR;
+      cv.shadowOffsetY=4*DPR;
+      cv.fillStyle='rgba(0,0,0,0.001)'; // casi transparente: solo queremos la sombra
+      cv.fill();
+      cv.restore();
+
+      // (2) Fondo del papel + borde fino
+      roundedRectPath(cv, 0,0, A4.w,A4.h, RADIUS);
+      cv.fillStyle='#fff'; cv.fill();
+      cv.lineWidth=1*DPR; cv.strokeStyle='rgba(0,0,0,.06)'; cv.stroke();
+
+      // (3) Clip a la página para el resto
+      roundedRectPath(cv, 0,0, A4.w,A4.h, RADIUS); cv.clip();
 
       const step=mm2px(parseFloat(stepSel.value));
       const top=20*DPR;
@@ -391,15 +384,8 @@
         cv.lineWidth=2*DPR; cv.strokeStyle=margin; cv.stroke();
       }
 
-      // ===== Agujeros “troquelados” dentro de ESTE canvas =====
-      const pitch=mm2px(parseFloat(getComputedStyle(document.documentElement).getPropertyValue('--pitch-mm'))||12);
-      const holeR=mm2px(parseFloat(getComputedStyle(document.documentElement).getPropertyValue('--holeD-mm'))||4.2)/2;
-      const offset=mm2px(parseFloat(getComputedStyle(document.documentElement).getPropertyValue('--offset-mm'))||5.0);
+      // Canto sombreado (pegado al borde del folio)
       const side=ringSideSel.value;
-      const topPad=mm2px(12);
-      const cx = (side==='left') ? offset : (A4.w - offset);
-
-      // sombra lineal en el canto de la hoja
       cv.save();
       const grad=cv.createLinearGradient(side==='left'?0: A4.w-4*DPR, 0, side==='left'?4*DPR: A4.w, 0);
       grad.addColorStop(0,'rgba(0,0,0,.10)'); grad.addColorStop(1,'rgba(0,0,0,0)');
@@ -407,7 +393,14 @@
       if(side==='left') cv.fillRect(0,0,4*DPR,A4.h); else cv.fillRect(A4.w-4*DPR,0,4*DPR,A4.h);
       cv.restore();
 
-      // “Perforar” todo lo dibujado: destino-out
+      // Agujeros (troquel dentro del mismo canvas)
+      const pitch=mm2px(parseFloat(getComputedStyle(document.documentElement).getPropertyValue('--pitch-mm'))||12);
+      const holeR=mm2px(parseFloat(getComputedStyle(document.documentElement).getPropertyValue('--holeD-mm'))||4.2)/2;
+      const offset=mm2px(parseFloat(getComputedStyle(document.documentElement).getPropertyValue('--offset-mm'))||5.0);
+      const topPad=mm2px(12);
+      const cx = (side==='left') ? offset : (A4.w - offset);
+
+      // Perforación (quita tinta)
       cv.save();
       cv.globalCompositeOperation='destination-out';
       for(let y=topPad; y<=A4.h-topPad; y+=pitch){
@@ -415,18 +408,14 @@
       }
       cv.restore();
 
-      // Borde + sombreado interno (source-over)
-      cv.save();
+      // Contorno + viñeteado interior
       for(let y=topPad; y<=A4.h-topPad; y+=pitch){
-        // contorno
-        cv.beginPath(); cv.arc(cx,y,Math.max(holeR-0.25*DPR, 0),0,Math.PI*2);
+        cv.beginPath(); cv.arc(cx,y,Math.max(holeR-0.25*DPR,0),0,Math.PI*2);
         cv.lineWidth=0.75*DPR; cv.strokeStyle='rgba(0,0,0,.45)'; cv.globalAlpha=0.35; cv.stroke();
-        // viñeteado interior
         const g=cv.createRadialGradient(cx,y, holeR*0.55, cx,y, holeR);
         g.addColorStop(0,'rgba(0,0,0,0)'); g.addColorStop(1,'rgba(0,0,0,.08)');
         cv.beginPath(); cv.arc(cx,y,holeR,0,Math.PI*2); cv.fillStyle=g; cv.fill();
       }
-      cv.restore();
     });
   }
 
@@ -461,9 +450,12 @@
     ctx.clearRect(0,0,ghost.width,ghost.height);
 
     withView(ctx, (cv)=>{
+      // clip a folio para que no “salga”
+      roundedRectPath(cv, 0,0, A4.w,A4.h, RADIUS); cv.save(); cv.clip();
+
       drawHeaderLine(cv);
 
-      const txt=currentGuideText(); if(!txt) return;
+      const txt=currentGuideText(); if(!txt) { cv.restore(); return; }
       const fontPx=(+ghostSize.value)*DPR;
       cv.font=`normal ${fontPx}px "EscolarG", system-ui, sans-serif`;
       cv.textBaseline='alphabetic';
@@ -484,6 +476,7 @@
         cv.fillText(txt,(A4.w-total)/2,baseY);
         cv.strokeText(txt,(A4.w-total)/2,baseY);
       }
+      cv.restore();
     });
   }
 
@@ -540,6 +533,9 @@
     dctx.setTransform(1,0,0,1,0,0);
     dctx.clearRect(0,0,draw.width,draw.height);
     withView(dctx, (cv)=>{
+      // clip a folio
+      roundedRectPath(cv, 0,0, A4.w,A4.h, RADIUS); cv.save(); cv.clip();
+
       const strokes=history.flat();
       strokes.forEach(s=>{
         cv.save(); cv.globalCompositeOperation=s.mode;
@@ -558,13 +554,14 @@
         }
         cv.restore();
       });
+      cv.restore();
     });
   }
   undoBtn.onclick=()=>{ if(!history.length) return; redoStack.push(history.pop()); redrawDrawLayer(); };
   redoBtn.onclick=()=>{ if(!redoStack.length) return; history.push(redoStack.pop()); redrawDrawLayer(); };
   clearBtn.onclick=()=>{ history.length=0; redoStack.length=0; redrawDrawLayer(); };
 
-  // ===== Exportar (pauta+agujeros unidos) =====
+  // ===== Exportar (mismo aspecto, sin sombra externa para imprimir limpio) =====
   function strokeH(o,y,w,c){ o.beginPath(); o.moveTo(0,y); o.lineTo(A4.w,y); o.lineWidth=w; o.strokeStyle=c; o.stroke(); }
   function strokeV(o,x,w,c){ o.beginPath(); o.moveTo(x,0); o.lineTo(x,A4.h); o.lineWidth=w; o.strokeStyle=c; o.stroke(); }
 
@@ -572,7 +569,7 @@
     const off=document.createElement('canvas'); off.width=A4.w; off.height=A4.h;
     const o=off.getContext('2d');
 
-    // Clip a la hoja
+    // Página en limpio (sin sombra externa)
     roundedRectPath(o, 0,0, A4.w,A4.h, RADIUS); o.save(); o.clip();
     o.fillStyle='#fff'; o.fillRect(0,0,off.width,off.height);
 
@@ -660,7 +657,7 @@
       o.restore();
     });
 
-    // Agujeros (mismo proceso que en pantalla)
+    // Agujeros
     (function(ctx){
       const pitch=mm2px(parseFloat(getComputedStyle(document.documentElement).getPropertyValue('--pitch-mm'))||12);
       const holeR=mm2px(parseFloat(getComputedStyle(document.documentElement).getPropertyValue('--holeD-mm'))||4.2)/2;
@@ -668,12 +665,6 @@
       const side=ringSideSel.value;
       const topPad=mm2px(12);
       const cx = (side==='left') ? offset : (A4.w - offset);
-
-      // canto
-      const g=ctx.createLinearGradient(side==='left'?0: A4.w-4*DPR, 0, side==='left'?4*DPR: A4.w, 0);
-      g.addColorStop(0,'rgba(0,0,0,.10)'); g.addColorStop(1,'rgba(0,0,0,0)');
-      ctx.fillStyle=g;
-      if(side==='left') ctx.fillRect(0,0,4*DPR,A4.h); else ctx.fillRect(A4.w-4*DPR,0,4*DPR,A4.h);
 
       // troquel
       ctx.save();
@@ -737,11 +728,13 @@
   document.getElementById('tool').addEventListener('change', ()=>{});
 
   (async ()=>{
-    sizePaper();
+    // Sin borde/sombra en el contenedor: todo lo pinta el canvas (y se transforma)
+    cvs.forEach(cv=>{ cv.width=A4.w; cv.height=A4.h; cv.style.width=px2css(A4.w); cv.style.height=px2css(A4.h); });
+    paper.style.width=px2css(A4.w); paper.style.height=px2css(A4.h);
     await waitEscolar();
     redrawAll();
   })();
-  window.addEventListener('resize', ()=>{ sizePaper(); redrawAll(); }, {passive:true});
+  window.addEventListener('resize', ()=>{ cvs.forEach(cv=>{ cv.width=A4.w; cv.height=A4.h; cv.style.width=px2css(A4.w); cv.style.height=px2css(A4.h); }); redrawAll(); }, {passive:true});
 })();
 </script>
 </body>
