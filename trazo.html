@@ -15,7 +15,6 @@
     font-display: swap;
   }
   :root{
-    --bg:#f3f4f6;           /* mesa gris */
     --paper-shadow: rgba(0,0,0,.15);
     --divide:#e5e7eb;
     --pill:#f8fafc; --pill-border:#e5e7eb; --pill-hover:#eef2ff;
@@ -24,9 +23,9 @@
     --base:#ef4444; --sec:#3b82f6; --margin:#10b981;
 
     /* Agujeros (anillado) */
-    --pitch-mm: 12;   /* separación entre agujeros */
-    --holeD-mm: 4.2;  /* diámetro del agujero */
-    --offset-mm: 5.0; /* distancia del centro del agujero al borde del papel */
+    --pitch-mm: 12;
+    --holeD-mm: 4.2;
+    --offset-mm: 5.0;
   }
 
   *{box-sizing:border-box}
@@ -34,10 +33,10 @@
     margin:0;
     font-family:system-ui,-apple-system,Segoe UI,Roboto,Helvetica,Arial;
     min-height:100vh;display:flex;flex-direction:column;
-    background:var(--bg); /* solo mientras carga */
+    background:#fff; /* ← FONDO GENERAL BLANCO */
   }
 
-  /* ===== Toolbar simple en dos filas ===== */
+  /* ===== Toolbar simple (puede partir en 2 filas con wrap) ===== */
   header.toolbar{
     position:sticky; top:8px; z-index:10;
     margin:8px auto; max-width:1200px; width:calc(100% - 16px);
@@ -63,7 +62,7 @@
   /* ===== Escenario / Hoja ===== */
   main{flex:1 1 auto;display:flex;justify-content:center;align-items:flex-start;overflow:auto;padding:8px}
   .paper{ position:relative; touch-action:none; }
-  canvas{position:absolute;top:0;left:0;touch-action:none}
+  canvas{position:absolute;top:0;left:0;touch-action:none; background:transparent}
   #pautaCanvas{z-index:2;pointer-events:none}
   #drawCanvas {z-index:3}
   #ghostCanvas{z-index:4;pointer-events:none}
@@ -88,7 +87,6 @@
       <option value="eraser">🩹 Goma</option>
     </select>
     <label title="Grosor del trazo">
-      <!-- Trazo mínimo por defecto -->
       <input id="penSize" type="range" min="1" max="64" value="1" />
     </label>
     <button id="undo" class="icon" title="Deshacer">↶</button>
@@ -177,7 +175,7 @@
 
 <main>
   <div id="paper" class="paper">
-    <canvas id="pautaCanvas"></canvas>  <!-- mesa + folio + cuadrícula + pauta + agujeros -->
+    <canvas id="pautaCanvas"></canvas>
     <canvas id="drawCanvas"></canvas>
     <canvas id="ghostCanvas"></canvas>
   </div>
@@ -250,7 +248,7 @@
   }
 
   // ===== Vista (zoom/pan con límites) =====
-  let viewScale=1, viewOffsetX=0, viewOffsetY=0; // coords documento
+  let viewScale=1, viewOffsetX=0, viewOffsetY=0;
 
   function withView(ctx, drawFn){
     ctx.save();
@@ -270,14 +268,13 @@
   }
   function clamp(v,a,b){return Math.min(b,Math.max(a,v));}
 
-  // Mantén la hoja dentro del canvas (no permitir vacíos grises “por encima”)
   function clampView(){
     const vw = A4.w / viewScale;
     const vh = A4.h / viewScale;
     if (vw <= A4.w){
       viewOffsetX = clamp(viewOffsetX, 0, A4.w - vw);
     }else{
-      viewOffsetX = (A4.w - vw)/2; // centrar cuando está más pequeña que el lienzo
+      viewOffsetX = (A4.w - vw)/2;
     }
     if (vh <= A4.h){
       viewOffsetY = clamp(viewOffsetY, 0, A4.h - vh);
@@ -285,12 +282,10 @@
       viewOffsetY = (A4.h - vh)/2;
     }
   }
-
   function applyViewRedraw(){ drawPauta(); drawGuide(); redrawDrawLayer(); }
 
   function zoomBy(factor, focusDocX=A4.w/2, focusDocY=A4.h/2){
     const old=viewScale, next=clamp(old*factor,0.3,4); if(next===old) return;
-    // mantener el foco
     const screenX=(focusDocX-viewOffsetX)*old, screenY=(focusDocY-viewOffsetY)*old;
     viewScale=next;
     viewOffsetX=focusDocX - screenX/viewScale;
@@ -343,7 +338,7 @@
     paper.style.height=px2css(A4.h);
   }
 
-  // ===== Pauta + cuadrícula + agujeros + “folio” + “mesa” en el MISMO flujo =====
+  // ===== Pauta + cuadrícula + agujeros + folio =====
   function strokeH(ctx,y,w,c){ ctx.beginPath(); ctx.moveTo(0,y); ctx.lineTo(A4.w,y); ctx.lineWidth=w; ctx.strokeStyle=c; ctx.stroke(); }
   function strokeV(ctx,x,w,c){ ctx.beginPath(); ctx.moveTo(x,0); ctx.lineTo(x,A4.h); ctx.lineWidth=w; ctx.strokeStyle=c; ctx.stroke(); }
 
@@ -352,13 +347,12 @@
     ctx.setTransform(1,0,0,1,0,0);
     ctx.clearRect(0,0,pauta.width,pauta.height);
 
-    withView(ctx, (cv)=>{
-      // (0) MESA gris detrás del folio y moviéndose con él (rectángulo grande)
-      const bg = getComputedStyle(document.documentElement).getPropertyValue('--bg').trim() || '#f3f4f6';
-      cv.fillStyle=bg;
-      cv.fillRect(-A4.w, -A4.h, A4.w*3, A4.h*3); // grande para que no “asome” nada
+    /* IMPORTANTE: canvas SIEMPRE BLANCO (así jamás asoma gris) */
+    ctx.fillStyle='#fff';
+    ctx.fillRect(0,0,pauta.width,pauta.height);
 
-      // (1) Sombra del folio
+    withView(ctx, (cv)=>{
+      // Sombra del folio
       cv.save();
       roundedRectPath(cv, 0,0, A4.w,A4.h, RADIUS);
       cv.shadowColor='var(--paper-shadow)';
@@ -366,12 +360,12 @@
       cv.fillStyle='rgba(0,0,0,0.001)'; cv.fill();
       cv.restore();
 
-      // (2) Fondo blanco + borde fino
+      // Fondo blanco + borde del folio
       roundedRectPath(cv, 0,0, A4.w,A4.h, RADIUS);
       cv.fillStyle='#fff'; cv.fill();
       cv.lineWidth=1*DPR; cv.strokeStyle='rgba(0,0,0,.06)'; cv.stroke();
 
-      // (3) Clip al folio
+      // Clip al folio
       roundedRectPath(cv, 0,0, A4.w,A4.h, RADIUS); cv.clip();
 
       const step=mm2px(parseFloat(stepSel.value));
@@ -416,21 +410,12 @@
         cv.lineWidth=2*DPR; cv.strokeStyle=marginC; cv.stroke();
       }
 
-      // Canto sombreado
-      const side=ringSideSel.value;
-      cv.save();
-      const grad=cv.createLinearGradient(side==='left'?0: A4.w-4*DPR, 0, side==='left'?4*DPR: A4.w, 0);
-      grad.addColorStop(0,'rgba(0,0,0,.10)'); grad.addColorStop(1,'rgba(0,0,0,0)');
-      cv.fillStyle=grad;
-      if(side==='left') cv.fillRect(0,0,4*DPR,A4.h); else cv.fillRect(A4.w-4*DPR,0,4*DPR,A4.h);
-      cv.restore();
-
       // Agujeros (troquel)
       const pitch=mm2px(parseFloat(getComputedStyle(document.documentElement).getPropertyValue('--pitch-mm'))||12);
       const holeR=mm2px(parseFloat(getComputedStyle(document.documentElement).getPropertyValue('--holeD-mm'))||4.2)/2;
       const offset=mm2px(parseFloat(getComputedStyle(document.documentElement).getPropertyValue('--offset-mm'))||5.0);
       const topPad=mm2px(12);
-      const cx = (side==='left') ? offset : (A4.w - offset);
+      const cx = (ringSideSel.value==='left') ? offset : (A4.w - offset);
 
       // “Quitar” papel (perforar)
       cv.save();
@@ -451,7 +436,7 @@
     });
   }
 
-  // ===== Guía (cabecera + práctica) =====
+  // ===== Guía =====
   function currentGuideText(){
     const sel=ghostSelect.value;
     if(!ghostShow.checked || sel==='__none__') return '';
@@ -511,7 +496,7 @@
     });
   }
 
-  // ===== Dibujo libre (grosor constante con zoom) =====
+  // ===== Dibujo libre =====
   const dctx=draw.getContext('2d'); dctx.lineCap='round'; dctx.lineJoin='round';
   let drawing=false, points=[]; const history=[]; let redoStack=[];
 
@@ -591,7 +576,7 @@
   redoBtn.onclick=()=>{ if(!redoStack.length) return; history.push(redoStack.pop()); redrawDrawLayer(); };
   clearBtn.onclick=()=>{ history.length=0; redoStack.length=0; redrawDrawLayer(); };
 
-  // ===== Exportar (impresión limpia) =====
+  // ===== Exportar =====
   function strokeH(o,y,w,c){ o.beginPath(); o.moveTo(0,y); o.lineTo(A4.w,y); o.lineWidth=w; o.strokeStyle=c; o.stroke(); }
   function strokeV(o,x,w,c){ o.beginPath(); o.moveTo(x,0); o.lineTo(x,A4.h); o.lineWidth=w; o.strokeStyle=c; o.stroke(); }
 
@@ -599,7 +584,6 @@
     const off=document.createElement('canvas'); off.width=A4.w; off.height=A4.h;
     const o=off.getContext('2d');
 
-    // Página limpia
     roundedRectPath(o, 0,0, A4.w,A4.h, RADIUS); o.save(); o.clip();
     o.fillStyle='#fff'; o.fillRect(0,0,off.width,off.height);
 
@@ -697,7 +681,6 @@
       const topPad=mm2px(12);
       const cx = (side==='left') ? offset : (A4.w - offset);
 
-      // troquel
       ctx.save();
       ctx.globalCompositeOperation='destination-out';
       for(let y=topPad; y<=A4.h-topPad; y+=pitch){
@@ -705,7 +688,6 @@
       }
       ctx.restore();
 
-      // borde + viñeteado
       for(let y=topPad; y<=A4.h-topPad; y+=pitch){
         ctx.beginPath(); ctx.arc(cx,y,Math.max(holeR-0.25*DPR,0),0,Math.PI*2);
         ctx.lineWidth=0.75*DPR; ctx.strokeStyle='rgba(0,0,0,.45)'; ctx.globalAlpha=0.35; ctx.stroke();
@@ -715,7 +697,7 @@
       }
     })(o);
 
-    o.restore(); // salir del clip
+    o.restore();
     return off;
   }
 
