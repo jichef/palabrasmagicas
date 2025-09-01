@@ -18,7 +18,7 @@
     --divide:#e5e7eb;
     --pill:#f8fafc; --pill-border:#e5e7eb; --pill-hover:#eef2ff;
 
-    /* Colores pauta */
+    /* Colores pauta (para modo "Clásica") */
     --base:#ef4444; --sec:#3b82f6; --margin:#10b981;
 
     /* Agujeros (anillado) */
@@ -61,7 +61,7 @@
   /* ===== Área de trabajo ===== */
   main{
     flex:1 1 auto;display:flex;justify-content:center;align-items:flex-start;
-    overflow:hidden; /* importante para que el zoom “aproveche” el viewport */
+    overflow:hidden; /* el zoom aprovecha todo el viewport */
     padding:8px;
   }
 
@@ -69,16 +69,17 @@
   .viewport{
     position:relative;
     width:100%; height:100%;
-    overflow:hidden; /* ocultar lo que se salga */
+    overflow:hidden;
     touch-action:none;
+    background:#fff; /* blanco sólido */
   }
   .pageWrap{
     position:absolute; top:0; left:0;
-    transform-origin: 0 0; /* zoom desde la esquina; ajustamos con translate */
+    transform-origin: 0 0;
     will-change: transform;
   }
 
-  /* Los 3 canvas (pauta/ghost/draw) apilados exactamente uno encima de otro */
+  /* Los 3 canvas apilados */
   .paper{ position:relative; width:fit-content; height:fit-content; }
   canvas{position:absolute; top:0; left:0; touch-action:none; background:transparent}
   #pautaCanvas{z-index:2; pointer-events:none}
@@ -264,29 +265,41 @@
   const panMode=document.getElementById('panMode');
   const ringSideSel=document.getElementById('ringSide');
 
+  // ===== Colores (siempre valores reales, sin 'var(...)' en canvas) =====
+  function palette(mode){
+    const root=getComputedStyle(document.documentElement);
+    const css = v => (root.getPropertyValue(v)||'').trim();
+    if(mode==='suave') return {base:'#f87171', sec:'#93c5fd', margin:'#22c55e'};
+    if(mode==='alto')  return {base:'#dc2626', sec:'#1d4ed8', margin:'#16a34a'};
+    return {
+      base: css('--base')   || '#ef4444',
+      sec:  css('--sec')    || '#3b82f6',
+      margin: css('--margin') || '#10b981'
+    };
+  }
+
   // ===== Estado de vista (CSS transform) =====
-  let scale=1;      // factor de zoom
-  let tx=0, ty=0;   // translate (px CSS, relativo a viewport)
+  let scale=1;      // zoom
+  let tx=0, ty=0;   // translate (px CSS)
 
   function applyTransform(){
     wrap.style.transform = `translate(${tx}px, ${ty}px) scale(${scale})`;
   }
 
-  // Ajustar el folio al viewport (que aproveche toda la pantalla)
+  // Ajuste a viewport
   function fitToViewport(){
     const vw = viewport.clientWidth;
     const vh = viewport.clientHeight;
-    const a4w = A4.w/DPR; // tamaño A4 en px CSS
+    const a4w = A4.w/DPR; // px CSS
     const a4h = A4.h/DPR;
     const s = Math.min(vw / a4w, vh / a4h);
     scale = s;
-    // centrar
     tx = (vw - a4w*scale)/2;
     ty = (vh - a4h*scale)/2;
     applyTransform();
   }
 
-  // Zoom con foco en un punto de pantalla
+  // Zoom al punto
   function zoomAt(factor, clientX, clientY){
     const rect = viewport.getBoundingClientRect();
     const px = clientX - rect.left;
@@ -294,8 +307,6 @@
     const old = scale;
     const next = Math.min(6, Math.max(0.2, old*factor));
     if(next===old) return;
-
-    // Mantener el punto bajo el cursor
     const dx = (px - tx) / old;
     const dy = (py - ty) / old;
     scale = next;
@@ -308,7 +319,7 @@
   zoomOutBtn.onclick= ()=> zoomAt(1/1.15, viewport.clientWidth/2 + viewport.getBoundingClientRect().left, viewport.clientHeight/2 + viewport.getBoundingClientRect().top);
   zoomResetBtn.onclick= fitToViewport;
 
-  // Pan (sobre el wrapper)
+  // Pan
   let panning=false, panStart={x:0,y:0}, startT={x:0,y:0};
   viewport.addEventListener('pointerdown', e=>{
     if(!panMode.checked) return;
@@ -345,6 +356,16 @@
   }
 
   // ===== Pauta + cuadrícula + agujeros + folio =====
+  function roundedRectPath(ctx,x,y,w,h,r){
+    const rr=Math.min(r, w/2, h/2);
+    ctx.beginPath();
+    ctx.moveTo(x+rr,y);
+    ctx.arcTo(x+w,y, x+w,y+h, rr);
+    ctx.arcTo(x+w,y+h, x,y+h, rr);
+    ctx.arcTo(x,y+h, x,y, rr);
+    ctx.arcTo(x,y, x+w,y, rr);
+    ctx.closePath();
+  }
   function strokeH(ctx,y,w,c){ ctx.beginPath(); ctx.moveTo(0,y); ctx.lineTo(A4.w,y); ctx.lineWidth=w; ctx.strokeStyle=c; ctx.stroke(); }
   function strokeV(ctx,x,w,c){ ctx.beginPath(); ctx.moveTo(x,0); ctx.lineTo(x,A4.h); ctx.lineWidth=w; ctx.strokeStyle=c; ctx.stroke(); }
 
@@ -353,7 +374,7 @@
     ctx.setTransform(1,0,0,1,0,0);
     ctx.clearRect(0,0,pauta.width,pauta.height);
 
-    // Fondo del canvas SIEMPRE blanco
+    // Fondo del canvas SIEMPRE blanco (no gris)
     ctx.fillStyle='#fff';
     ctx.fillRect(0,0,pauta.width,pauta.height);
 
@@ -377,10 +398,7 @@
     const period=step*4.6;
     const marginPx=mm2px(parseFloat(margenSel.value)||0);
 
-    const mode=colorSel.value;
-    const base=(mode==='suave')?'#f87171':(mode==='alto')?'#dc2626':'var(--base)';
-    const sec =(mode==='suave')?'#93c5fd':(mode==='alto')?'#1d4ed8':'var(--sec)';
-    const marginC=(mode==='suave')?'#22c55e':(mode==='alto')?'#16a34a':'var(--margin)';
+    const {base,sec,margin}=palette(colorSel.value);
 
     pauta.dataset.topPad=String(top);
     pauta.dataset.step=String(step);
@@ -411,7 +429,7 @@
     // Margen vertical
     if(marginPx>0){
       ctx.beginPath(); ctx.moveTo(marginPx,0); ctx.lineTo(marginPx,pauta.height);
-      ctx.lineWidth=2*DPR; ctx.strokeStyle=marginC; ctx.stroke();
+      ctx.lineWidth=2*DPR; ctx.strokeStyle=margin; ctx.stroke();
     }
 
     // Agujeros (troquel)
@@ -504,9 +522,9 @@
 
   function toolMode(){ return (toolSel.value==='eraser')?'destination-out':'source-over'; }
 
-  // Mapear puntero -> coords del canvas teniendo en cuenta el transform CSS
+  // Puntero → coords de canvas (con transform CSS aplicado)
   function pointerCanvasPos(e){
-    const r = draw.getBoundingClientRect(); // YA incluye translate+scale
+    const r = draw.getBoundingClientRect();
     const x = (e.clientX - r.left) * (draw.width / r.width);
     const y = (e.clientY - r.top)  * (draw.height / r.height);
     return {x, y};
@@ -526,7 +544,7 @@
     const p=pointerCanvasPos(e);
     const prev=points[points.length-1];
     points.push(p);
-    const size=(+penSize.value)*DPR/scale; // compensar zoom CSS
+    const size=(+penSize.value)*DPR/scale;
     dctx.beginPath();
     dctx.moveTo(prev.x,prev.y);
     dctx.quadraticCurveTo(prev.x,prev.y,(prev.x+p.x)/2,(prev.y+p.y)/2);
@@ -535,7 +553,7 @@
   function endDraw(e){
     if(!drawing) return;
     drawing=false;
-    const size=(+penSize.value)*DPR; // guardamos en “tamaño documento” (sin dividir)
+    const size=(+penSize.value)*DPR; // guardamos tamaño “documento”
     history.push([{mode:toolMode(), size, color:'#111', path:points.slice()}]);
     dctx.restore();
     try{ draw.releasePointerCapture(e?.pointerId); }catch{}
@@ -552,7 +570,7 @@
       dctx.save(); dctx.globalCompositeOperation=s.mode;
       if(s.path.length===1){
         const p=s.path[0];
-        dctx.beginPath(); dctx.arc(p.x,p.y,(s.size/2)/scale,0,Math.PI*2); // compensación zoom CSS
+        dctx.beginPath(); dctx.arc(p.x,p.y,(s.size/2)/scale,0,Math.PI*2);
         dctx.fillStyle=s.color; dctx.fill();
       }else{
         dctx.beginPath();
@@ -585,10 +603,7 @@
 
     const step=mm2px(+stepSel.value);
     const top =20*DPR;
-    const mode=colorSel.value;
-    const base = (mode==='suave')?'#f87171':(mode==='alto')?'#dc2626':'#ef4444';
-    const sec  = (mode==='suave')?'#93c5fd':(mode==='alto')?'#1d4ed8':'#3b82f6';
-    const marginC=(mode==='suave')?'#22c55e':(mode==='alto')?'#16a34a':'#10b981';
+    const {base,sec,margin}=palette(colorSel.value);
     const marginPx=mm2px(+margenSel.value||0);
 
     if(showGrid.checked){
@@ -606,7 +621,7 @@
       }
       if(marginPx>0){
         o.beginPath(); o.moveTo(marginPx,0); o.lineTo(marginPx,A4.h);
-        o.lineWidth=2*DPR; o.strokeStyle=marginC; o.stroke();
+        o.lineWidth=2*DPR; o.strokeStyle=margin; o.stroke();
       }
     }
 
@@ -739,25 +754,12 @@
     paper.style.width=px2css(A4.w); paper.style.height=px2css(A4.h);
     await waitEscolar();
     redrawAll();
-    fitToViewport(); // ← ocupa todo el viewport al iniciar
+    fitToViewport(); // ocupa todo el viewport al iniciar
   })();
 
   window.addEventListener('resize', ()=>{ 
-    // reencajar a viewport cuando cambie el tamaño disponible
     fitToViewport();
   }, {passive:true});
-
-  // Helpers geom
-  function roundedRectPath(ctx,x,y,w,h,r){
-    const rr=Math.min(r, w/2, h/2);
-    ctx.beginPath();
-    ctx.moveTo(x+rr,y);
-    ctx.arcTo(x+w,y, x+w,y+h, rr);
-    ctx.arcTo(x+w,y+h, x,y+h, rr);
-    ctx.arcTo(x,y+h, x,y, rr);
-    ctx.arcTo(x,y, x+w,y, rr);
-    ctx.closePath();
-  }
 })();
 </script>
 </body>
