@@ -75,8 +75,7 @@
     touch-action:none;
   }
   canvas{position:absolute;top:0;left:0;touch-action:none}
-  #punchCanvas{z-index:1;pointer-events:none}  /* agujeros sobre la hoja */
-  #pautaCanvas{z-index:2;pointer-events:none;border-radius:12px}
+  #pautaCanvas{z-index:2;pointer-events:none;border-radius:12px} /* ahora incluye agujeros */
   #drawCanvas {z-index:3;border-radius:12px}
   #ghostCanvas{z-index:4;pointer-events:none;border-radius:12px}
 </style>
@@ -192,8 +191,7 @@
 
 <main>
   <div id="paper" class="paper">
-    <canvas id="punchCanvas"></canvas> <!-- agujeros sobre la hoja -->
-    <canvas id="pautaCanvas"></canvas>
+    <canvas id="pautaCanvas"></canvas>  <!-- ahora incluye cuadrícula + pauta + agujeros -->
     <canvas id="drawCanvas"></canvas>
     <canvas id="ghostCanvas"></canvas>
   </div>
@@ -225,11 +223,10 @@
 
   // DOM
   const paper=document.getElementById('paper');
-  const punch=document.getElementById('punchCanvas');
   const pauta=document.getElementById('pautaCanvas');
   const draw =document.getElementById('drawCanvas');
   const ghost=document.getElementById('ghostCanvas');
-  const cvs=[punch,pauta,draw,ghost];
+  const cvs=[pauta,draw,ghost];
 
   // Controles
   const stepSel=document.getElementById('pautaStep');
@@ -273,13 +270,10 @@
   function withView(ctx, drawFn){
     ctx.save();
     ctx.setTransform(viewScale,0,0,viewScale, -viewOffsetX*viewScale, -viewOffsetY*viewScale);
-    // Clip a la hoja con borde redondeado para que nada “se salga”
-    clipPage(ctx);
+    clipPage(ctx); // clip de hoja
     drawFn(ctx);
     ctx.restore();
   }
-
-  // Clip sin save/restore interno (evita acumulación)
   function clipPage(ctx){
     roundedRectPath(ctx, 0,0, A4.w,A4.h, RADIUS);
     ctx.clip();
@@ -294,10 +288,8 @@
     ctx.arcTo(x,y, x+w,y, rr);
     ctx.closePath();
   }
-
   function clamp(v,a,b){return Math.min(b,Math.max(a,v));}
-  function applyViewRedraw(){ drawPunches(); drawPauta(); drawGuide(); redrawDrawLayer(); }
-
+  function applyViewRedraw(){ drawPauta(); drawGuide(); redrawDrawLayer(); }
   function zoomBy(factor, focusDocX=A4.w/2, focusDocY=A4.h/2){
     const old=viewScale, next=clamp(old*factor,0.3,4); if(next===old) return;
     const screenX=(focusDocX-viewOffsetX)*old, screenY=(focusDocY-viewOffsetY)*old;
@@ -347,19 +339,9 @@
     paper.style.height=px2css(A4.h);
   }
 
-  // ===== Pauta + cuadrícula =====
+  // ===== Pauta + cuadrícula + agujeros (todo unido) =====
   function strokeH(ctx,y,w,c){ ctx.beginPath(); ctx.moveTo(0,y); ctx.lineTo(A4.w,y); ctx.lineWidth=w; ctx.strokeStyle=c; ctx.stroke(); }
   function strokeV(ctx,x,w,c){ ctx.beginPath(); ctx.moveTo(x,0); ctx.lineTo(x,A4.h); ctx.lineWidth=w; ctx.strokeStyle=c; ctx.stroke(); }
-
-  function drawGridVertical(ctx, step, marginPx, secColor){
-    if(!showGrid.checked) return;
-    ctx.save();
-    ctx.globalAlpha=0.15;
-    ctx.lineWidth=Math.max(0.75*DPR,0.5*DPR);
-    let x=Math.max(0,marginPx);
-    while(x<A4.w-1){ strokeV(ctx,x,ctx.lineWidth,secColor); x+=step; }
-    ctx.restore();
-  }
 
   function drawPauta(){
     const ctx=pauta.getContext('2d');
@@ -379,8 +361,17 @@
       pauta.dataset.period=String(period);
       pauta.dataset.margin=String(marginPx);
 
-      drawGridVertical(cv, step, marginPx, sec);
+      // Cuadrícula vertical desde el margen
+      if(showGrid.checked){
+        cv.save();
+        cv.globalAlpha=0.15;
+        cv.lineWidth=Math.max(0.75*DPR,0.5*DPR);
+        let x=Math.max(0,marginPx);
+        while(x<A4.w-1){ strokeV(cv,x,cv.lineWidth,sec); x+=step; }
+        cv.restore();
+      }
 
+      // Pauta horizontal
       if(showPauta.checked){
         let y=top;
         while(y<pauta.height-top){
@@ -390,53 +381,47 @@
           strokeH(cv,y,1*DPR,sec); y+=step*1.6;    // descendente + espacio
         }
       }
+
+      // Margen vertical
       if(marginPx>0){
         cv.beginPath(); cv.moveTo(marginPx,0); cv.lineTo(marginPx,pauta.height);
         cv.lineWidth=2*DPR; cv.strokeStyle=margin; cv.stroke();
       }
-    });
-  }
 
-  // ===== Agujeros sobre la hoja (anillado) =====
-  function drawPunches(){
-    const ctx=punch.getContext('2d');
-    ctx.setTransform(1,0,0,1,0,0);
-    ctx.clearRect(0,0,punch.width,punch.height);
-
-    withView(ctx, (cv)=>{
+      // ===== Agujeros “troquelados” dentro de este MISMO canvas =====
       const pitch=mm2px(parseFloat(getComputedStyle(document.documentElement).getPropertyValue('--pitch-mm'))||18);
       const holeR=mm2px(parseFloat(getComputedStyle(document.documentElement).getPropertyValue('--holeD-mm'))||6.4)/2;
       const offset=mm2px(parseFloat(getComputedStyle(document.documentElement).getPropertyValue('--offset-mm'))||5.0);
       const side=ringSideSel.value;
       const topPad=mm2px(12);
+      const cx = (side==='left') ? offset : (A4.w - offset);
 
-      // sombra lineal muy sutil en el borde de la hoja
+      // sombra lineal en el canto de la hoja
       cv.save();
       const grad=cv.createLinearGradient(side==='left'?0: A4.w-4*DPR, 0, side==='left'?4*DPR: A4.w, 0);
-      grad.addColorStop(0,'rgba(0,0,0,.10)');
-      grad.addColorStop(1,'rgba(0,0,0,0)');
+      grad.addColorStop(0,'rgba(0,0,0,.10)'); grad.addColorStop(1,'rgba(0,0,0,0)');
       cv.fillStyle=grad;
       if(side==='left') cv.fillRect(0,0,4*DPR,A4.h); else cv.fillRect(A4.w-4*DPR,0,4*DPR,A4.h);
       cv.restore();
 
-      // “Agujero” visual: círculos blancos + borde
-      const cx = (side==='left') ? offset : (A4.w - offset);
+      // “Perforar” todo lo dibujado: destino-out
+      cv.save();
+      cv.globalCompositeOperation='destination-out';
+      for(let y=topPad; y<=A4.h-topPad; y+=pitch){
+        cv.beginPath(); cv.arc(cx,y,holeR,0,Math.PI*2); cv.fill();
+      }
+      cv.restore();
+
+      // Borde + sombreado interno (source-over)
       cv.save();
       for(let y=topPad; y<=A4.h-topPad; y+=pitch){
-        // relleno blanco (papel)
-        cv.beginPath(); cv.arc(cx,y,holeR,0,Math.PI*2);
-        cv.fillStyle='#fff'; cv.fill();
-
-        // borde fino
+        // contorno
         cv.beginPath(); cv.arc(cx,y,holeR-0.25*DPR,0,Math.PI*2);
         cv.lineWidth=0.75*DPR; cv.strokeStyle='rgba(0,0,0,.45)'; cv.globalAlpha=0.35; cv.stroke();
-
-        // leve sombreado interior
+        // viñeteado interno
         const g=cv.createRadialGradient(cx,y, holeR*0.55, cx,y, holeR);
-        g.addColorStop(0,'rgba(0,0,0,0)');
-        g.addColorStop(1,'rgba(0,0,0,.08)');
-        cv.beginPath(); cv.arc(cx,y,holeR,0,Math.PI*2);
-        cv.fillStyle=g; cv.fill();
+        g.addColorStop(0,'rgba(0,0,0,0)'); g.addColorStop(1,'rgba(0,0,0,.08)');
+        cv.beginPath(); cv.arc(cx,y,holeR,0,Math.PI*2); cv.fillStyle=g; cv.fill();
       }
       cv.restore();
     });
@@ -499,7 +484,7 @@
     });
   }
 
-  // ===== Dibujo libre (historial en coords documento; grosor constante) =====
+  // ===== Dibujo libre (coords documento; grosor constante con zoom) =====
   const dctx=draw.getContext('2d'); dctx.lineCap='round'; dctx.lineJoin='round';
   let drawing=false, points=[]; const history=[]; let redoStack=[];
 
@@ -576,14 +561,13 @@
   redoBtn.onclick=()=>{ if(!redoStack.length) return; history.push(redoStack.pop()); redrawDrawLayer(); };
   clearBtn.onclick=()=>{ history.length=0; redoStack.length=0; redrawDrawLayer(); };
 
-  // ===== Exportar (con agujeros) =====
+  // ===== Exportar (pauta+agujeros unidos) =====
   function composeToCanvas(){
     const off=document.createElement('canvas'); off.width=A4.w; off.height=A4.h;
     const o=off.getContext('2d');
 
     // Clip a la hoja
     roundedRectPath(o, 0,0, A4.w,A4.h, RADIUS); o.save(); o.clip();
-
     o.fillStyle='#fff'; o.fillRect(0,0,off.width,off.height);
 
     const step=mm2px(+stepSel.value);
@@ -607,7 +591,7 @@
         strokeH(o,y,1*DPR,sec); y+=step*1.6;
       }
       if(marginPx>0){
-        o.beginPath(); o.moveTo(marginPx,0); o.lineTo(marginPx,A4.h); /* FIX: marginPx */
+        o.beginPath(); o.moveTo(marginPx,0); o.lineTo(marginPx,A4.h);
         o.lineWidth=2*DPR; o.strokeStyle=margin; o.stroke();
       }
     }
@@ -634,7 +618,6 @@
       if(sel==='__none__' || !ghostShow.checked) return '';
       return sel==='__custom__' ? (ghostText.value||'').trim() : sel;
     })();
-
     if(txt){
       const fontPx=(+ghostSize.value)*DPR;
       o.font=`normal ${fontPx}px "EscolarG", system-ui, sans-serif`;
@@ -671,31 +654,36 @@
       o.restore();
     });
 
-    // Agujeros (igual que en pantalla) — blancos + borde + sombreado interno
+    // Agujeros (mismo proceso que en pantalla, sobre la misma hoja)
     (function(ctx){
       const pitch=mm2px(parseFloat(getComputedStyle(document.documentElement).getPropertyValue('--pitch-mm'))||18);
       const holeR=mm2px(parseFloat(getComputedStyle(document.documentElement).getPropertyValue('--holeD-mm'))||6.4)/2;
       const offset=mm2px(parseFloat(getComputedStyle(document.documentElement).getPropertyValue('--offset-mm'))||5.0);
       const side=ringSideSel.value;
       const topPad=mm2px(12);
-      // sombra en el borde lateral
+      const cx = (side==='left') ? offset : (A4.w - offset);
+
+      // canto
       const g=ctx.createLinearGradient(side==='left'?0: A4.w-4*DPR, 0, side==='left'?4*DPR: A4.w, 0);
       g.addColorStop(0,'rgba(0,0,0,.10)'); g.addColorStop(1,'rgba(0,0,0,0)');
       ctx.fillStyle=g;
       if(side==='left') ctx.fillRect(0,0,4*DPR,A4.h); else ctx.fillRect(A4.w-4*DPR,0,4*DPR,A4.h);
 
-      const cx = (side==='left') ? offset : (A4.w - offset);
+      // troquel
+      ctx.save();
+      ctx.globalCompositeOperation='destination-out';
       for(let y=topPad; y<=A4.h-topPad; y+=pitch){
-        ctx.beginPath(); ctx.arc(cx,y,holeR,0,Math.PI*2);
-        ctx.fillStyle='#fff'; ctx.fill();
+        ctx.beginPath(); ctx.arc(cx,y,holeR,0,Math.PI*2); ctx.fill();
+      }
+      ctx.restore();
 
+      // borde + viñeteado
+      for(let y=topPad; y<=A4.h-topPad; y+=pitch){
         ctx.beginPath(); ctx.arc(cx,y,holeR-0.25*DPR,0,Math.PI*2);
         ctx.lineWidth=0.75*DPR; ctx.strokeStyle='rgba(0,0,0,.45)'; ctx.globalAlpha=0.35; ctx.stroke();
-
         const gr=ctx.createRadialGradient(cx,y, holeR*0.55, cx,y, holeR);
         gr.addColorStop(0,'rgba(0,0,0,0)'); gr.addColorStop(1,'rgba(0,0,0,.08)');
-        ctx.beginPath(); ctx.arc(cx,y,holeR,0,Math.PI*2);
-        ctx.fillStyle=gr; ctx.fill();
+        ctx.beginPath(); ctx.arc(cx,y,holeR,0,Math.PI*2); ctx.fillStyle=gr; ctx.fill();
       }
     })(o);
 
@@ -703,6 +691,7 @@
     return off;
   }
 
+  // Exportar
   savePngBtn.onclick=async()=>{ await waitEscolar(); const off=composeToCanvas(); const a=document.createElement('a'); a.href=off.toDataURL('image/png'); a.download='pauta-trazos.png'; a.click(); };
   printPdfBtn.onclick=async()=>{
     await waitEscolar();
@@ -728,8 +717,8 @@
     w.document.close();
   };
 
-  // ===== Redibujado global =====
-  function redrawAll(){ drawPunches(); drawPauta(); drawGuide(); redrawDrawLayer(); }
+  // Eventos y arranque
+  function redrawAll(){ drawPauta(); drawGuide(); redrawDrawLayer(); }
   [stepSel,margenSel,colorSel,showPauta,showGrid].forEach(el=>el.addEventListener('change',redrawAll));
   redrawBtn.onclick=redrawAll;
   ghostSelect.addEventListener('change',()=>{
@@ -741,14 +730,12 @@
   ringSideSel.addEventListener('change', redrawAll);
   document.getElementById('tool').addEventListener('change', ()=>{});
 
-  // Init
   (async ()=>{
-    cvs.forEach(cv=>{ cv.width=A4.w; cv.height=A4.h; cv.style.width=px2css(A4.w); cv.style.height=px2css(A4.h); });
-    paper.style.width=px2css(A4.w); paper.style.height=px2css(A4.h);
+    sizePaper();
     await waitEscolar();
     redrawAll();
   })();
-  window.addEventListener('resize', ()=>{ cvs.forEach(cv=>{ cv.width=A4.w; cv.height=A4.h; cv.style.width=px2css(A4.w); cv.style.height=px2css(A4.h); }); redrawAll(); }, {passive:true});
+  window.addEventListener('resize', ()=>{ sizePaper(); redrawAll(); }, {passive:true});
 })();
 </script>
 </body>
