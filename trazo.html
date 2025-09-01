@@ -15,58 +15,70 @@
     font-display: swap;
   }
   :root{
-    --border:#d1d5db; --bg:#f3f4f6;
-    --toolbar-bg:#ffffffcc; --toolbar-border:#e5e7eb;
+    --bg:#f3f4f6;           /* gris “mesa” */
+    --paper-shadow: rgba(0,0,0,.15);
+    --divide:#e5e7eb;
     --pill:#f8fafc; --pill-border:#e5e7eb; --pill-hover:#eef2ff;
-    --shadow:0 6px 20px rgba(0,0,0,.12);
 
-    /* Agujeros (anillado sobre la hoja) — más y más pequeños */
+    /* Colores pauta */
+    --base:#ef4444; --sec:#3b82f6; --margin:#10b981;
+
+    /* Agujeros (anillado) */
     --pitch-mm: 12;   /* separación vertical entre agujeros */
     --holeD-mm: 4.2;  /* diámetro del agujero */
     --offset-mm: 5.0; /* distancia del centro del agujero al borde del papel */
   }
+
   *{box-sizing:border-box}
   body{
-    margin:0;background:var(--bg);
+    margin:0;
     font-family:system-ui,-apple-system,Segoe UI,Roboto,Helvetica,Arial;
     min-height:100vh;display:flex;flex-direction:column;
+    background:var(--bg); /* se ve mientras carga el canvas */
   }
 
-  /* ===== Toolbar único y compacto ===== */
+  /* ===== Toolbar: una barra, clara y compacta ===== */
   header.toolbar{
     position:sticky; top:8px; z-index:10;
     margin:8px auto; max-width:1200px; width:calc(100% - 16px);
-    background:var(--toolbar-bg); backdrop-filter:saturate(1.2) blur(6px);
-    border:1px solid var(--toolbar-border); border-radius:12px;
-    box-shadow:var(--shadow);
-    padding:.35rem .5rem;
-    display:flex; gap:.5rem; align-items:center; overflow-x:auto; scrollbar-width:thin;
+    background:#fff; border:1px solid var(--divide); border-radius:12px;
+    box-shadow:0 6px 20px rgba(0,0,0,.08);
+    padding:.5rem .6rem;
+    display:flex; gap:.75rem; align-items:center; overflow-x:auto; scrollbar-width:thin;
   }
   header.toolbar::-webkit-scrollbar{height:8px}
   header.toolbar::-webkit-scrollbar-thumb{background:#d1d5db;border-radius:999px}
-  .tgroup{display:flex;align-items:center;gap:.4rem;position:relative}
-  .tgroup+.tgroup::before{
-    content:"";position:absolute;left:-.25rem;top:6px;bottom:6px;width:1px;
-    background:linear-gradient(to bottom,transparent,#e5e7eb,transparent);
+  .group{
+    display:flex; align-items:center; gap:.5rem; padding:0 .25rem;
+    position:relative;
   }
-  .sr-only{position:absolute!important;width:1px;height:1px;padding:0;margin:-1px;overflow:hidden;clip:rect(0,0,0,0);white-space:nowrap;border:0}
+  .group+.group::before{
+    content:""; position:absolute; left:-.375rem; top:6px; bottom:6px; width:1px;
+    background:linear-gradient(to bottom,transparent,var(--divide),transparent);
+  }
+  .gtitle{
+    font-size:.78rem; font-weight:600; color:#374151; letter-spacing:.02em;
+    padding:.15rem .45rem; border:1px solid var(--divide); border-radius:999px; background:#fff;
+  }
   select,input[type="text"]{
     border:1px solid var(--pill-border);border-radius:999px;
-    padding:.3rem .55rem;background:var(--pill);font-size:.85rem;outline:none;
+    padding:.35rem .6rem;background:var(--pill);font-size:.9rem;outline:none;
   }
-  input[type="range"]{width:100px}
+  input[type="range"]{ width:110px }
   button{
     border:1px solid var(--pill-border);border-radius:999px;background:var(--pill);
-    padding:.35rem .55rem;cursor:pointer;transition:background .15s ease, transform .02s ease;
-    font-size:1rem; line-height:1;
+    padding:.4rem .6rem; cursor:pointer; transition:background .15s ease, transform .02s ease;
   }
   button:hover{background:var(--pill-hover)} button:active{transform:translateY(1px)}
-  .icon{padding:.35rem .5rem;min-width:2rem}
+  .icon{min-width:2rem}
 
-  /* Escenario / Hoja */
-  main{flex:1 1 auto;display:flex;justify-content:center;align-items:flex-start;overflow:auto;padding:8px}
-  .paper{position:relative; touch-action:none;}
-  /* OJO: sin borde/sombra aquí — los dibujo en canvas para que hagan zoom/pan */
+  /* ===== Escenario / Hoja ===== */
+  main{
+    flex:1 1 auto;display:flex;justify-content:center;align-items:flex-start;
+    overflow:auto;padding:8px;
+  }
+  .paper{ position:relative; touch-action:none; }
+  /* Nada de sombras/bordes aquí: todo se pinta en canvas para que acompañe zoom/pan */
   canvas{position:absolute;top:0;left:0;touch-action:none}
   #pautaCanvas{z-index:2;pointer-events:none}
   #drawCanvas {z-index:3}
@@ -76,46 +88,51 @@
 <body>
 
 <header class="toolbar" role="toolbar" aria-label="Barra de herramientas">
-  <div class="tgroup" aria-label="Archivo">
+  <!-- Archivo -->
+  <div class="group">
+    <span class="gtitle">Archivo</span>
     <button id="savePng"  class="icon" title="Guardar PNG">💾</button>
     <button id="printPdf" class="icon" title="Imprimir / PDF">🖨️</button>
     <button id="clear"    class="icon" title="Limpiar">🗑️</button>
   </div>
 
-  <div class="tgroup" aria-label="Edición">
-    <label class="sr-only" for="tool">Herramienta</label>
+  <!-- Edición -->
+  <div class="group">
+    <span class="gtitle">Edición</span>
     <select id="tool" title="Herramienta">
       <option value="pen" selected>✏️ Lápiz</option>
       <option value="eraser">🩹 Goma</option>
     </select>
-    <label class="sr-only" for="penSize">Grosor</label>
-    <input id="penSize" type="range" min="1" max="64" value="40" title="Grosor del trazo" />
+    <label title="Grosor del trazo">
+      <input id="penSize" type="range" min="1" max="64" value="40" />
+    </label>
     <button id="undo" class="icon" title="Deshacer">↶</button>
     <button id="redo" class="icon" title="Rehacer">↷</button>
   </div>
 
-  <div class="tgroup" aria-label="Vista">
+  <!-- Vista -->
+  <div class="group">
+    <span class="gtitle">Vista</span>
     <button id="zoomIn" class="icon" title="Acercar">＋</button>
     <button id="zoomOut" class="icon" title="Alejar">－</button>
-    <button id="zoomReset" class="icon" title="Restablecer vista">⟲</button>
+    <button id="zoomReset" class="icon" title="Restablecer">⟲</button>
     <label title="Modo Pan"><input type="checkbox" id="panMode" /> 👋</label>
   </div>
 
-  <div class="tgroup" aria-label="Pauta">
-    <label class="sr-only" for="pautaStep">Paso</label>
-    <select id="pautaStep" title="Paso de la pauta (mm)">
+  <!-- Pauta -->
+  <div class="group">
+    <span class="gtitle">Pauta</span>
+    <select id="pautaStep" title="Paso (mm)">
       <option value="2.5">2.5 mm</option>
       <option value="3">3 mm</option>
       <option value="4" selected>4 mm</option>
     </select>
-    <label class="sr-only" for="margenSel">Margen</label>
     <select id="margenSel" title="Margen (mm)">
       <option value="0">Sin margen</option>
       <option value="10">10 mm</option>
       <option value="15" selected>15 mm</option>
     </select>
-    <label class="sr-only" for="colorPauta">Color</label>
-    <select id="colorPauta" title="Color de la pauta">
+    <select id="colorPauta" title="Color">
       <option value="clasica">Clásica</option>
       <option value="suave" selected>Suave</option>
       <option value="alto">Alto contraste</option>
@@ -125,8 +142,9 @@
     <button id="redraw" class="icon" title="Redibujar">🔄</button>
   </div>
 
-  <div class="tgroup" aria-label="Guía">
-    <label class="sr-only" for="ghostSelect">Letra</label>
+  <!-- Guía -->
+  <div class="group">
+    <span class="gtitle">Guía</span>
     <select id="ghostSelect" title="Letra guía">
       <optgroup label="Minúsculas">
         <option>a</option><option>b</option><option>c</option><option>d</option><option>e</option>
@@ -150,10 +168,8 @@
       </optgroup>
     </select>
     <input id="ghostText" type="text" placeholder="Escribe…" style="display:none;width:10rem" title="Texto libre" />
-    <label class="sr-only" for="ghostSize">Tamaño guía</label>
-    <input id="ghostSize" type="range" min="40" max="300" value="40" title="Tamaño de la guía" />
-    <label class="sr-only" for="viaIndex">Vía</label>
-    <select id="viaIndex" title="Línea (vía)">
+    <input id="ghostSize" type="range" min="40" max="300" value="40" title="Tamaño guía" />
+    <select id="viaIndex" title="Vía">
       <option value="1">1ª</option>
       <option value="2" selected>2ª</option>
       <option value="3">3ª</option>
@@ -164,9 +180,10 @@
     <label title="Palabra en línea"><input type="checkbox" id="inlineWord" checked/> ≡</label>
   </div>
 
-  <div class="tgroup" aria-label="Anilla">
-    <label class="sr-only" for="ringSide">Lado anilla</label>
-    <select id="ringSide" title="Lado de la anilla">
+  <!-- Anilla -->
+  <div class="group">
+    <span class="gtitle">Anilla</span>
+    <select id="ringSide" title="Lado">
       <option value="left" selected>Izq.</option>
       <option value="right">Der.</option>
     </select>
@@ -175,7 +192,7 @@
 
 <main>
   <div id="paper" class="paper">
-    <canvas id="pautaCanvas"></canvas>  <!-- papel + cuadrícula + pauta + agujeros + canto -->
+    <canvas id="pautaCanvas"></canvas>  <!-- “mesa” + folio + cuadrícula + pauta + agujeros -->
     <canvas id="drawCanvas"></canvas>
     <canvas id="ghostCanvas"></canvas>
   </div>
@@ -187,8 +204,7 @@
   const DPR=Math.max(1,window.devicePixelRatio||1);
   const mm2px=mm=>mm*96/25.4*DPR, px2css=px=>(px/DPR)+'px';
   const A4={w:mm2px(210),h:mm2px(297)};
-  const RADIUS_CSS=12; // borde redondeado visual en CSS px
-  const RADIUS=RADIUS_CSS*DPR;
+  const RADIUS_CSS=12, RADIUS=RADIUS_CSS*DPR;
 
   // Fecha
   const formatTodayEs=()=>new Intl.DateTimeFormat('es-ES',{day:'numeric',month:'long',year:'numeric'}).format(new Date());
@@ -254,7 +270,7 @@
   function withView(ctx, drawFn){
     ctx.save();
     ctx.setTransform(viewScale,0,0,viewScale, -viewOffsetX*viewScale, -viewOffsetY*viewScale);
-    drawFn(ctx);     // OJO: el clip a la página lo hago dentro cuando convenga
+    drawFn(ctx);
     ctx.restore();
   }
   function roundedRectPath(ctx,x,y,w,h,r){
@@ -318,7 +334,7 @@
     paper.style.height=px2css(A4.h);
   }
 
-  // ===== Pauta + cuadrícula + agujeros + “folio” (todo unido) =====
+  // ===== Pauta + cuadrícula + agujeros + “folio” + “mesa” (todo unido) =====
   function strokeH(ctx,y,w,c){ ctx.beginPath(); ctx.moveTo(0,y); ctx.lineTo(A4.w,y); ctx.lineWidth=w; ctx.strokeStyle=c; ctx.stroke(); }
   function strokeV(ctx,x,w,c){ ctx.beginPath(); ctx.moveTo(x,0); ctx.lineTo(x,A4.h); ctx.lineWidth=w; ctx.strokeStyle=c; ctx.stroke(); }
 
@@ -327,37 +343,44 @@
     ctx.setTransform(1,0,0,1,0,0);
     ctx.clearRect(0,0,pauta.width,pauta.height);
 
+    /* 0) “Mesa” gris: se pinta EN EL MISMO CANVAS (fondo fijo, no se transforma) */
+    ctx.fillStyle=getComputedStyle(document.documentElement).getPropertyValue('--bg').trim() || '#f3f4f6';
+    ctx.fillRect(0,0,pauta.width,pauta.height);
+
     withView(ctx, (cv)=>{
-      // (1) Sombra del folio (fuera de clip, pero transformada)
+      // (1) Sombra del folio (transformada)
       cv.save();
       roundedRectPath(cv, 0,0, A4.w,A4.h, RADIUS);
-      cv.shadowColor='rgba(0,0,0,.15)';
+      cv.shadowColor='var(--paper-shadow)'; // leve
       cv.shadowBlur=12*DPR;
       cv.shadowOffsetY=4*DPR;
-      cv.fillStyle='rgba(0,0,0,0.001)'; // casi transparente: solo queremos la sombra
-      cv.fill();
+      cv.fillStyle='rgba(0,0,0,0.001)'; cv.fill();
       cv.restore();
 
-      // (2) Fondo del papel + borde fino
+      // (2) Fondo blanco + borde del folio
       roundedRectPath(cv, 0,0, A4.w,A4.h, RADIUS);
       cv.fillStyle='#fff'; cv.fill();
       cv.lineWidth=1*DPR; cv.strokeStyle='rgba(0,0,0,.06)'; cv.stroke();
 
-      // (3) Clip a la página para el resto
+      // (3) Clip al folio
       roundedRectPath(cv, 0,0, A4.w,A4.h, RADIUS); cv.clip();
 
       const step=mm2px(parseFloat(stepSel.value));
       const top=20*DPR;
       const period=step*4.6;
       const marginPx=mm2px(parseFloat(margenSel.value)||0);
-      const {base,sec,margin}=palette(colorSel.value);
+
+      const mode=colorSel.value;
+      const base = (mode==='suave')?'#f87171':(mode==='alto')?'#dc2626':'var(--base)';
+      const sec  = (mode==='suave')?'#93c5fd':(mode==='alto')?'#1d4ed8':'var(--sec)';
+      const marginC=(mode==='suave')?'#22c55e':(mode==='alto')?'#16a34a':'var(--margin)';
 
       pauta.dataset.topPad=String(top);
       pauta.dataset.step=String(step);
       pauta.dataset.period=String(period);
       pauta.dataset.margin=String(marginPx);
 
-      // Cuadrícula vertical desde el margen
+      // Cuadrícula (vertical) desde el margen
       if(showGrid.checked){
         cv.save();
         cv.globalAlpha=0.15;
@@ -381,10 +404,10 @@
       // Margen vertical
       if(marginPx>0){
         cv.beginPath(); cv.moveTo(marginPx,0); cv.lineTo(marginPx,pauta.height);
-        cv.lineWidth=2*DPR; cv.strokeStyle=margin; cv.stroke();
+        cv.lineWidth=2*DPR; cv.strokeStyle=marginC; cv.stroke();
       }
 
-      // Canto sombreado (pegado al borde del folio)
+      // Canto sombreado
       const side=ringSideSel.value;
       cv.save();
       const grad=cv.createLinearGradient(side==='left'?0: A4.w-4*DPR, 0, side==='left'?4*DPR: A4.w, 0);
@@ -393,14 +416,14 @@
       if(side==='left') cv.fillRect(0,0,4*DPR,A4.h); else cv.fillRect(A4.w-4*DPR,0,4*DPR,A4.h);
       cv.restore();
 
-      // Agujeros (troquel dentro del mismo canvas)
+      // Agujeros (troquel)
       const pitch=mm2px(parseFloat(getComputedStyle(document.documentElement).getPropertyValue('--pitch-mm'))||12);
       const holeR=mm2px(parseFloat(getComputedStyle(document.documentElement).getPropertyValue('--holeD-mm'))||4.2)/2;
       const offset=mm2px(parseFloat(getComputedStyle(document.documentElement).getPropertyValue('--offset-mm'))||5.0);
       const topPad=mm2px(12);
       const cx = (side==='left') ? offset : (A4.w - offset);
 
-      // Perforación (quita tinta)
+      // Quitar “papel” (perforar)
       cv.save();
       cv.globalCompositeOperation='destination-out';
       for(let y=topPad; y<=A4.h-topPad; y+=pitch){
@@ -408,7 +431,7 @@
       }
       cv.restore();
 
-      // Contorno + viñeteado interior
+      // Borde + viñeteado del agujero
       for(let y=topPad; y<=A4.h-topPad; y+=pitch){
         cv.beginPath(); cv.arc(cx,y,Math.max(holeR-0.25*DPR,0),0,Math.PI*2);
         cv.lineWidth=0.75*DPR; cv.strokeStyle='rgba(0,0,0,.45)'; cv.globalAlpha=0.35; cv.stroke();
@@ -450,7 +473,6 @@
     ctx.clearRect(0,0,ghost.width,ghost.height);
 
     withView(ctx, (cv)=>{
-      // clip a folio para que no “salga”
       roundedRectPath(cv, 0,0, A4.w,A4.h, RADIUS); cv.save(); cv.clip();
 
       drawHeaderLine(cv);
@@ -480,7 +502,7 @@
     });
   }
 
-  // ===== Dibujo libre (coords documento; grosor constante con zoom) =====
+  // ===== Dibujo libre =====
   const dctx=draw.getContext('2d'); dctx.lineCap='round'; dctx.lineJoin='round';
   let drawing=false, points=[]; const history=[]; let redoStack=[];
 
@@ -533,7 +555,6 @@
     dctx.setTransform(1,0,0,1,0,0);
     dctx.clearRect(0,0,draw.width,draw.height);
     withView(dctx, (cv)=>{
-      // clip a folio
       roundedRectPath(cv, 0,0, A4.w,A4.h, RADIUS); cv.save(); cv.clip();
 
       const strokes=history.flat();
@@ -561,7 +582,7 @@
   redoBtn.onclick=()=>{ if(!redoStack.length) return; history.push(redoStack.pop()); redrawDrawLayer(); };
   clearBtn.onclick=()=>{ history.length=0; redoStack.length=0; redrawDrawLayer(); };
 
-  // ===== Exportar (mismo aspecto, sin sombra externa para imprimir limpio) =====
+  // ===== Exportar (impresión limpia) =====
   function strokeH(o,y,w,c){ o.beginPath(); o.moveTo(0,y); o.lineTo(A4.w,y); o.lineWidth=w; o.strokeStyle=c; o.stroke(); }
   function strokeV(o,x,w,c){ o.beginPath(); o.moveTo(x,0); o.lineTo(x,A4.h); o.lineWidth=w; o.strokeStyle=c; o.stroke(); }
 
@@ -569,22 +590,23 @@
     const off=document.createElement('canvas'); off.width=A4.w; off.height=A4.h;
     const o=off.getContext('2d');
 
-    // Página en limpio (sin sombra externa)
+    // Página limpia
     roundedRectPath(o, 0,0, A4.w,A4.h, RADIUS); o.save(); o.clip();
     o.fillStyle='#fff'; o.fillRect(0,0,off.width,off.height);
 
     const step=mm2px(+stepSel.value);
     const top =20*DPR;
-    const {base,sec,margin}=palette(colorSel.value);
+    const mode=colorSel.value;
+    const base = (mode==='suave')?'#f87171':(mode==='alto')?'#dc2626':'#ef4444';
+    const sec  = (mode==='suave')?'#93c5fd':(mode==='alto')?'#1d4ed8':'#3b82f6';
+    const marginC=(mode==='suave')?'#22c55e':(mode==='alto')?'#16a34a':'#10b981';
     const marginPx=mm2px(+margenSel.value||0);
 
-    // Cuadrícula
     if(showGrid.checked){
       o.save(); o.globalAlpha=0.15; o.lineWidth=Math.max(0.75*DPR,0.5*DPR);
       let x=Math.max(0,marginPx); while(x<A4.w-1){ strokeV(o,x,o.lineWidth,sec); x+=step; }
       o.restore();
     }
-    // Pauta
     if(showPauta.checked){
       let y=top;
       while(y<A4.h-top){
@@ -595,7 +617,7 @@
       }
       if(marginPx>0){
         o.beginPath(); o.moveTo(marginPx,0); o.lineTo(marginPx,A4.h);
-        o.lineWidth=2*DPR; o.strokeStyle=margin; o.stroke();
+        o.lineWidth=2*DPR; o.strokeStyle=marginC; o.stroke();
       }
     }
 
@@ -728,7 +750,6 @@
   document.getElementById('tool').addEventListener('change', ()=>{});
 
   (async ()=>{
-    // Sin borde/sombra en el contenedor: todo lo pinta el canvas (y se transforma)
     cvs.forEach(cv=>{ cv.width=A4.w; cv.height=A4.h; cv.style.width=px2css(A4.w); cv.style.height=px2css(A4.h); });
     paper.style.width=px2css(A4.w); paper.style.height=px2css(A4.h);
     await waitEscolar();
