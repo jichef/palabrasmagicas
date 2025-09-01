@@ -279,7 +279,7 @@
     ctx.restore();
   }
 
-  // FIX: el clip NO guarda/restaura estado aquí (evita acumulación)
+  // Clip sin save/restore interno (evita acumulación)
   function clipPage(ctx){
     roundedRectPath(ctx, 0,0, A4.w,A4.h, RADIUS);
     ctx.clip();
@@ -419,27 +419,24 @@
       if(side==='left') cv.fillRect(0,0,4*DPR,A4.h); else cv.fillRect(A4.w-4*DPR,0,4*DPR,A4.h);
       cv.restore();
 
-      // troquel: círculos transparentes dentro de la hoja
-      cv.save();
-      cv.globalCompositeOperation='destination-out';
+      // “Agujero” visual: círculos blancos + borde
       const cx = (side==='left') ? offset : (A4.w - offset);
-      for(let y=topPad; y<=A4.h-topPad; y+=pitch){
-        cv.beginPath();
-        cv.arc(cx,y,holeR,0,Math.PI*2);
-        cv.fill();
-      }
-      cv.restore();
-
-      // perfil fino del troquel (borde de los agujeros)
       cv.save();
-      cv.globalAlpha=0.35;
-      cv.strokeStyle='rgba(0,0,0,.45)';
-      cv.lineWidth=0.75*DPR;
-      const cx2 = cx;
       for(let y=topPad; y<=A4.h-topPad; y+=pitch){
-        cv.beginPath();
-        cv.arc(cx2,y,holeR,0,Math.PI*2);
-        cv.stroke();
+        // relleno blanco (papel)
+        cv.beginPath(); cv.arc(cx,y,holeR,0,Math.PI*2);
+        cv.fillStyle='#fff'; cv.fill();
+
+        // borde fino
+        cv.beginPath(); cv.arc(cx,y,holeR-0.25*DPR,0,Math.PI*2);
+        cv.lineWidth=0.75*DPR; cv.strokeStyle='rgba(0,0,0,.45)'; cv.globalAlpha=0.35; cv.stroke();
+
+        // leve sombreado interior
+        const g=cv.createRadialGradient(cx,y, holeR*0.55, cx,y, holeR);
+        g.addColorStop(0,'rgba(0,0,0,0)');
+        g.addColorStop(1,'rgba(0,0,0,.08)');
+        cv.beginPath(); cv.arc(cx,y,holeR,0,Math.PI*2);
+        cv.fillStyle=g; cv.fill();
       }
       cv.restore();
     });
@@ -610,7 +607,7 @@
         strokeH(o,y,1*DPR,sec); y+=step*1.6;
       }
       if(marginPx>0){
-        o.beginPath(); o.moveTo(marginPx,0); o.lineTo(margenPx,A4.h);
+        o.beginPath(); o.moveTo(marginPx,0); o.lineTo(marginPx,A4.h); /* FIX: marginPx */
         o.lineWidth=2*DPR; o.strokeStyle=margin; o.stroke();
       }
     }
@@ -674,35 +671,32 @@
       o.restore();
     });
 
-    // Agujeros (igual que en pantalla)
+    // Agujeros (igual que en pantalla) — blancos + borde + sombreado interno
     (function(ctx){
       const pitch=mm2px(parseFloat(getComputedStyle(document.documentElement).getPropertyValue('--pitch-mm'))||18);
       const holeR=mm2px(parseFloat(getComputedStyle(document.documentElement).getPropertyValue('--holeD-mm'))||6.4)/2;
       const offset=mm2px(parseFloat(getComputedStyle(document.documentElement).getPropertyValue('--offset-mm'))||5.0);
       const side=ringSideSel.value;
       const topPad=mm2px(12);
-      // ligera sombra en el borde
+      // sombra en el borde lateral
       const g=ctx.createLinearGradient(side==='left'?0: A4.w-4*DPR, 0, side==='left'?4*DPR: A4.w, 0);
       g.addColorStop(0,'rgba(0,0,0,.10)'); g.addColorStop(1,'rgba(0,0,0,0)');
       ctx.fillStyle=g;
       if(side==='left') ctx.fillRect(0,0,4*DPR,A4.h); else ctx.fillRect(A4.w-4*DPR,0,4*DPR,A4.h);
 
-      // troquel
-      ctx.save();
-      ctx.globalCompositeOperation='destination-out';
       const cx = (side==='left') ? offset : (A4.w - offset);
       for(let y=topPad; y<=A4.h-topPad; y+=pitch){
-        ctx.beginPath(); ctx.arc(cx,y,holeR,0,Math.PI*2); ctx.fill();
-      }
-      ctx.restore();
+        ctx.beginPath(); ctx.arc(cx,y,holeR,0,Math.PI*2);
+        ctx.fillStyle='#fff'; ctx.fill();
 
-      // borde de agujeros
-      ctx.save();
-      ctx.globalAlpha=0.35; ctx.strokeStyle='rgba(0,0,0,.45)'; ctx.lineWidth=0.75*DPR;
-      for(let y=topPad; y<=A4.h-topPad; y+=pitch){
-        ctx.beginPath(); ctx.arc((side==='left')?offset:(A4.w-offset),y,holeR,0,Math.PI*2); ctx.stroke();
+        ctx.beginPath(); ctx.arc(cx,y,holeR-0.25*DPR,0,Math.PI*2);
+        ctx.lineWidth=0.75*DPR; ctx.strokeStyle='rgba(0,0,0,.45)'; ctx.globalAlpha=0.35; ctx.stroke();
+
+        const gr=ctx.createRadialGradient(cx,y, holeR*0.55, cx,y, holeR);
+        gr.addColorStop(0,'rgba(0,0,0,0)'); gr.addColorStop(1,'rgba(0,0,0,.08)');
+        ctx.beginPath(); ctx.arc(cx,y,holeR,0,Math.PI*2);
+        ctx.fillStyle=gr; ctx.fill();
       }
-      ctx.restore();
     })(o);
 
     o.restore(); // salir del clip
