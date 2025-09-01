@@ -32,10 +32,13 @@
     min-height:100vh;display:flex;flex-direction:column;
   }
 
-  /* Toolbar estilo app */
-  header.toolbar{
+  /* ===== Toolbar en dos filas ===== */
+  .toolbar-wrap{
     position:sticky; top:8px; z-index:10;
     margin:8px auto; max-width:1200px; width:calc(100% - 16px);
+    display:flex; flex-direction:column; gap:8px;
+  }
+  header.toolbar{
     background:var(--toolbar-bg); backdrop-filter:saturate(1.2) blur(6px);
     border:1px solid var(--toolbar-border); border-radius:14px;
     box-shadow:var(--shadow);
@@ -44,6 +47,7 @@
   }
   header.toolbar::-webkit-scrollbar{height:8px}
   header.toolbar::-webkit-scrollbar-thumb{background:#d1d5db;border-radius:999px}
+  .trow{display:flex; gap:.75rem; align-items:center}
   .tgroup{display:flex;align-items:center;gap:.5rem;position:relative}
   .tgroup+.tgroup{margin-left:.25rem}
   .tgroup+.tgroup::before{
@@ -79,102 +83,112 @@
 </head>
 <body>
 
-<header class="toolbar" role="toolbar" aria-label="Barra de herramientas">
-  <div class="tgroup" aria-label="Archivo">
-    <button id="savePng"  class="icon" title="Guardar PNG">💾</button>
-    <button id="printPdf" class="icon" title="Imprimir / PDF">🖨️</button>
-    <button id="clear"    class="icon" title="Limpiar">🗑️</button>
-  </div>
+<div class="toolbar-wrap">
+  <!-- Fila 1 -->
+  <header class="toolbar" role="toolbar" aria-label="Barra de herramientas fila 1">
+    <div class="trow">
+      <div class="tgroup" aria-label="Archivo">
+        <button id="savePng"  class="icon" title="Guardar PNG">💾</button>
+        <button id="printPdf" class="icon" title="Imprimir / PDF">🖨️</button>
+        <button id="clear"    class="icon" title="Limpiar">🗑️</button>
+      </div>
 
-  <div class="tgroup" aria-label="Edición">
-    <label>Herramienta</label>
-    <select id="tool">
-      <option value="pen" selected>✏️ Lápiz</option>
-      <option value="eraser">🩹 Goma</option>
-    </select>
-    <label>Grosor</label>
-    <input id="penSize" type="range" min="1" max="64" value="1" />
-    <button id="undo" class="icon" title="Deshacer">↶</button>
-    <button id="redo" class="icon" title="Rehacer">↷</button>
-  </div>
+      <div class="tgroup" aria-label="Edición">
+        <label>Herramienta</label>
+        <select id="tool">
+          <option value="pen" selected>✏️ Lápiz</option>
+          <option value="eraser">🩹 Goma</option>
+        </select>
+        <label>Grosor</label>
+        <input id="penSize" type="range" min="1" max="64" value="1" />
+        <button id="undo" class="icon" title="Deshacer">↶</button>
+        <button id="redo" class="icon" title="Rehacer">↷</button>
+      </div>
 
-  <div class="tgroup" aria-label="Pauta">
-    <label>Paso</label>
-    <select id="pautaStep">
-      <option value="2.5">2.5 mm</option>
-      <option value="3">3 mm</option>
-      <option value="4" selected>4 mm</option>
-    </select>
-    <label>Margen</label>
-    <select id="margenSel">
-      <option value="0">Sin margen</option>
-      <option value="10">10 mm</option>
-      <option value="15" selected>15 mm</option>
-    </select>
-    <label>Color</label>
-    <select id="colorPauta">
-      <option value="clasica">Clásica</option>
-      <option value="suave" selected>Suave</option>
-      <option value="alto">Alto contraste</option>
-    </select>
-    <label><input type="checkbox" id="showPauta" checked/> Pauta</label>
-    <label><input type="checkbox" id="showGrid" checked/> Cuadrícula</label>
-    <button id="redraw" class="icon" title="Redibujar">🔄</button>
-  </div>
+      <div class="tgroup" aria-label="Vista">
+        <button id="zoomIn" class="icon" title="Acercar">＋</button>
+        <button id="zoomOut" class="icon" title="Alejar">－</button>
+        <button id="zoomReset" class="icon" title="Restablecer vista">⟲</button>
+        <label><input type="checkbox" id="panMode" /> 👋 Pan</label>
+      </div>
+    </div>
+  </header>
 
-  <div class="tgroup" aria-label="Guía">
-    <label>Letra</label>
-    <select id="ghostSelect">
-      <optgroup label="Minúsculas">
-        <option>a</option><option>b</option><option>c</option><option>d</option><option>e</option>
-        <option>f</option><option>g</option><option>h</option><option>i</option><option>j</option>
-        <option>k</option><option>l</option><option>m</option><option>n</option><option>ñ</option>
-        <option>o</option><option>p</option><option>q</option><option>r</option><option>s</option>
-        <option>t</option><option>u</option><option>v</option><option>w</option><option>x</option>
-        <option>y</option><option>z</option>
-      </optgroup>
-      <optgroup label="Mayúsculas">
-        <option>A</option><option>B</option><option>C</option><option>D</option><option>E</option>
-        <option>F</option><option>G</option><option>H</option><option>I</option><option>J</option>
-        <option>K</option><option>L</option><option>M</option><option>N</option><option>Ñ</option>
-        <option>O</option><option>P</option><option>Q</option><option>R</option><option>S</option>
-        <option>T</option><option>U</option><option>V</option><option>W</option><option>X</option>
-        <option>Y</option><option>Z</option>
-      </optgroup>
-      <optgroup label="Opciones">
-        <option value="__custom__">Libre (texto)</option>
-        <option value="__none__">Ocultar guía</option>
-      </optgroup>
-    </select>
-    <input id="ghostText" type="text" placeholder="Escribe aquí…" style="display:none;width:12rem" />
-    <label>Tamaño</label><input id="ghostSize" type="range" min="40" max="300" value="40" />
-    <label>Vía</label>
-    <select id="viaIndex">
-      <option value="1">1ª</option>
-      <option value="2" selected>2ª</option>
-      <option value="3">3ª</option>
-      <option value="4">4ª</option>
-      <option value="5">5ª</option>
-    </select>
-    <label><input type="checkbox" id="ghostShow" checked/> Mostrar</label>
-    <label><input type="checkbox" id="inlineWord" checked/> En línea</label>
-  </div>
+  <!-- Fila 2 -->
+  <header class="toolbar" role="toolbar" aria-label="Barra de herramientas fila 2">
+    <div class="trow">
+      <div class="tgroup" aria-label="Pauta">
+        <label>Paso</label>
+        <select id="pautaStep">
+          <option value="2.5">2.5 mm</option>
+          <option value="3">3 mm</option>
+          <option value="4" selected>4 mm</option>
+        </select>
+        <label>Margen</label>
+        <select id="margenSel">
+          <option value="0">Sin margen</option>
+          <option value="10">10 mm</option>
+          <option value="15" selected>15 mm</option>
+        </select>
+        <label>Color</label>
+        <select id="colorPauta">
+          <option value="clasica">Clásica</option>
+          <option value="suave" selected>Suave</option>
+          <option value="alto">Alto contraste</option>
+        </select>
+        <label><input type="checkbox" id="showPauta" checked/> Pauta</label>
+        <label><input type="checkbox" id="showGrid" checked/> Cuadrícula</label>
+        <button id="redraw" class="icon" title="Redibujar">🔄</button>
+      </div>
 
-  <div class="tgroup" aria-label="Anilla">
-    <label>Lado anilla</label>
-    <select id="ringSide">
-      <option value="left" selected>Izquierda</option>
-      <option value="right">Derecha</option>
-    </select>
-  </div>
+      <div class="tgroup" aria-label="Guía">
+        <label>Letra</label>
+        <select id="ghostSelect">
+          <optgroup label="Minúsculas">
+            <option>a</option><option>b</option><option>c</option><option>d</option><option>e</option>
+            <option>f</option><option>g</option><option>h</option><option>i</option><option>j</option>
+            <option>k</option><option>l</option><option>m</option><option>n</option><option>ñ</option>
+            <option>o</option><option>p</option><option>q</option><option>r</option><option>s</option>
+            <option>t</option><option>u</option><option>v</option><option>w</option><option>x</option>
+            <option>y</option><option>z</option>
+          </optgroup>
+          <optgroup label="Mayúsculas">
+            <option>A</option><option>B</option><option>C</option><option>D</option><option>E</option>
+            <option>F</option><option>G</option><option>H</option><option>I</option><option>J</option>
+            <option>K</option><option>L</option><option>M</option><option>N</option><option>Ñ</option>
+            <option>O</option><option>P</option><option>Q</option><option>R</option><option>S</option>
+            <option>T</option><option>U</option><option>V</option><option>W</option><option>X</option>
+            <option>Y</option><option>Z</option>
+          </optgroup>
+          <optgroup label="Opciones">
+            <option value="__custom__">Libre (texto)</option>
+            <option value="__none__">Ocultar guía</option>
+          </optgroup>
+        </select>
+        <input id="ghostText" type="text" placeholder="Escribe aquí…" style="display:none;width:12rem" />
+        <label>Tamaño</label><input id="ghostSize" type="range" min="40" max="300" value="40" />
+        <label>Vía</label>
+        <select id="viaIndex">
+          <option value="1">1ª</option>
+          <option value="2" selected>2ª</option>
+          <option value="3">3ª</option>
+          <option value="4">4ª</option>
+          <option value="5">5ª</option>
+        </select>
+        <label><input type="checkbox" id="ghostShow" checked/> Mostrar</label>
+        <label><input type="checkbox" id="inlineWord" checked/> En línea</label>
+      </div>
 
-  <div class="tgroup" aria-label="Vista">
-    <button id="zoomIn" class="icon" title="Acercar">＋</button>
-    <button id="zoomOut" class="icon" title="Alejar">－</button>
-    <button id="zoomReset" class="icon" title="Restablecer vista">⟲</button>
-    <label><input type="checkbox" id="panMode" /> 👋 Pan</label>
-  </div>
-</header>
+      <div class="tgroup" aria-label="Anilla">
+        <label>Lado anilla</label>
+        <select id="ringSide">
+          <option value="left" selected>Izquierda</option>
+          <option value="right">Derecha</option>
+        </select>
+      </div>
+    </div>
+  </header>
+</div>
 
 <main>
   <div id="paper" class="paper">
@@ -265,8 +279,8 @@
     ctx.restore();
   }
 
+  // FIX: el clip NO guarda/restaura estado aquí (evita acumulación)
   function clipPage(ctx){
-    ctx.save();
     roundedRectPath(ctx, 0,0, A4.w,A4.h, RADIUS);
     ctx.clip();
   }
@@ -407,7 +421,6 @@
 
       // troquel: círculos transparentes dentro de la hoja
       cv.save();
-      // Creamos una máscara usando 'destination-out' para “quitar” material
       cv.globalCompositeOperation='destination-out';
       const cx = (side==='left') ? offset : (A4.w - offset);
       for(let y=topPad; y<=A4.h-topPad; y+=pitch){
@@ -417,7 +430,7 @@
       }
       cv.restore();
 
-      // perfil fino del troquel (borde de los agujeros) para dar realismo
+      // perfil fino del troquel (borde de los agujeros)
       cv.save();
       cv.globalAlpha=0.35;
       cv.strokeStyle='rgba(0,0,0,.45)';
@@ -597,7 +610,7 @@
         strokeH(o,y,1*DPR,sec); y+=step*1.6;
       }
       if(marginPx>0){
-        o.beginPath(); o.moveTo(marginPx,0); o.lineTo(marginPx,A4.h);
+        o.beginPath(); o.moveTo(marginPx,0); o.lineTo(margenPx,A4.h);
         o.lineWidth=2*DPR; o.strokeStyle=margin; o.stroke();
       }
     }
