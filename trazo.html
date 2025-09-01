@@ -15,7 +15,6 @@
     font-display: swap;
   }
   :root{
-    --paper-shadow: rgba(0,0,0,.15);
     --divide:#e5e7eb;
     --pill:#f8fafc; --pill-border:#e5e7eb; --pill-hover:#eef2ff;
 
@@ -23,9 +22,9 @@
     --base:#ef4444; --sec:#3b82f6; --margin:#10b981;
 
     /* Agujeros (anillado) */
-    --pitch-mm: 12;
-    --holeD-mm: 4.2;
-    --offset-mm: 5.0;
+    --pitch-mm: 12;   /* separación */
+    --holeD-mm: 4.2;  /* diámetro */
+    --offset-mm: 5.0; /* centro al borde papel */
   }
 
   *{box-sizing:border-box}
@@ -33,10 +32,10 @@
     margin:0;
     font-family:system-ui,-apple-system,Segoe UI,Roboto,Helvetica,Arial;
     min-height:100vh;display:flex;flex-direction:column;
-    background:#fff; /* ← FONDO GENERAL BLANCO */
+    background:#fff;
   }
 
-  /* ===== Toolbar simple (puede partir en 2 filas con wrap) ===== */
+  /* ===== Toolbar simple, se parte en 2 filas si no cabe ===== */
   header.toolbar{
     position:sticky; top:8px; z-index:10;
     margin:8px auto; max-width:1200px; width:calc(100% - 16px);
@@ -59,13 +58,32 @@
   button:hover{background:var(--pill-hover)} button:active{transform:translateY(1px)}
   .icon{min-width:2rem}
 
-  /* ===== Escenario / Hoja ===== */
-  main{flex:1 1 auto;display:flex;justify-content:center;align-items:flex-start;overflow:auto;padding:8px}
-  .paper{ position:relative; touch-action:none; }
-  canvas{position:absolute;top:0;left:0;touch-action:none; background:transparent}
-  #pautaCanvas{z-index:2;pointer-events:none}
+  /* ===== Área de trabajo ===== */
+  main{
+    flex:1 1 auto;display:flex;justify-content:center;align-items:flex-start;
+    overflow:hidden; /* importante para que el zoom “aproveche” el viewport */
+    padding:8px;
+  }
+
+  /* Contenedor que se ZOOMA y PANEA */
+  .viewport{
+    position:relative;
+    width:100%; height:100%;
+    overflow:hidden; /* ocultar lo que se salga */
+    touch-action:none;
+  }
+  .pageWrap{
+    position:absolute; top:0; left:0;
+    transform-origin: 0 0; /* zoom desde la esquina; ajustamos con translate */
+    will-change: transform;
+  }
+
+  /* Los 3 canvas (pauta/ghost/draw) apilados exactamente uno encima de otro */
+  .paper{ position:relative; width:fit-content; height:fit-content; }
+  canvas{position:absolute; top:0; left:0; touch-action:none; background:transparent}
+  #pautaCanvas{z-index:2; pointer-events:none}
   #drawCanvas {z-index:3}
-  #ghostCanvas{z-index:4;pointer-events:none}
+  #ghostCanvas{z-index:4; pointer-events:none}
 </style>
 </head>
 <body>
@@ -98,7 +116,7 @@
     <span class="gtitle">Vista</span>
     <button id="zoomIn" class="icon" title="Acercar">＋</button>
     <button id="zoomOut" class="icon" title="Alejar">－</button>
-    <button id="zoomReset" class="icon" title="Restablecer">⟲</button>
+    <button id="zoomReset" class="icon" title="Ajustar a pantalla">⟲</button>
     <label title="Modo Pan"><input type="checkbox" id="panMode" /> Pan</label>
   </div>
 
@@ -174,10 +192,14 @@
 </header>
 
 <main>
-  <div id="paper" class="paper">
-    <canvas id="pautaCanvas"></canvas>
-    <canvas id="drawCanvas"></canvas>
-    <canvas id="ghostCanvas"></canvas>
+  <div class="viewport" id="viewport">
+    <div class="pageWrap" id="pageWrap">
+      <div class="paper" id="paper">
+        <canvas id="pautaCanvas"></canvas>
+        <canvas id="drawCanvas"></canvas>
+        <canvas id="ghostCanvas"></canvas>
+      </div>
+    </div>
   </div>
 </main>
 
@@ -191,7 +213,7 @@
 
   // Fecha
   const formatTodayEs=()=>new Intl.DateTimeFormat('es-ES',{day:'numeric',month:'long',year:'numeric'}).format(new Date());
-  const getHeaderText=()=>`Granada ${formatTodayEs()}`;
+  const getHeaderText=()=>`Granada — ${formatTodayEs()}`;
 
   // Fuente
   let escolarReady=null;
@@ -205,6 +227,8 @@
   }
 
   // DOM
+  const viewport=document.getElementById('viewport');
+  const wrap=document.getElementById('pageWrap');
   const paper=document.getElementById('paper');
   const pauta=document.getElementById('pautaCanvas');
   const draw =document.getElementById('drawCanvas');
@@ -240,95 +264,77 @@
   const panMode=document.getElementById('panMode');
   const ringSideSel=document.getElementById('ringSide');
 
-  // Paletas
-  function palette(mode){
-    if(mode==='suave') return {base:'#f87171', sec:'#93c5fd', margin:'#22c55e'};
-    if(mode==='alto')  return {base:'#dc2626', sec:'#1d4ed8', margin:'#16a34a'};
-    return {base:'#ef4444', sec:'#3b82f6', margin:'#10b981'};
+  // ===== Estado de vista (CSS transform) =====
+  let scale=1;      // factor de zoom
+  let tx=0, ty=0;   // translate (px CSS, relativo a viewport)
+
+  function applyTransform(){
+    wrap.style.transform = `translate(${tx}px, ${ty}px) scale(${scale})`;
   }
 
-  // ===== Vista (zoom/pan con límites) =====
-  let viewScale=1, viewOffsetX=0, viewOffsetY=0;
-
-  function withView(ctx, drawFn){
-    ctx.save();
-    ctx.setTransform(viewScale,0,0,viewScale, -viewOffsetX*viewScale, -viewOffsetY*viewScale);
-    drawFn(ctx);
-    ctx.restore();
+  // Ajustar el folio al viewport (que aproveche toda la pantalla)
+  function fitToViewport(){
+    const vw = viewport.clientWidth;
+    const vh = viewport.clientHeight;
+    const a4w = A4.w/DPR; // tamaño A4 en px CSS
+    const a4h = A4.h/DPR;
+    const s = Math.min(vw / a4w, vh / a4h);
+    scale = s;
+    // centrar
+    tx = (vw - a4w*scale)/2;
+    ty = (vh - a4h*scale)/2;
+    applyTransform();
   }
-  function roundedRectPath(ctx,x,y,w,h,r){
-    const rr=Math.min(r, w/2, h/2);
-    ctx.beginPath();
-    ctx.moveTo(x+rr,y);
-    ctx.arcTo(x+w,y, x+w,y+h, rr);
-    ctx.arcTo(x+w,y+h, x,y+h, rr);
-    ctx.arcTo(x,y+h, x,y, rr);
-    ctx.arcTo(x,y, x+w,y, rr);
-    ctx.closePath();
-  }
-  function clamp(v,a,b){return Math.min(b,Math.max(a,v));}
 
-  function clampView(){
-    const vw = A4.w / viewScale;
-    const vh = A4.h / viewScale;
-    if (vw <= A4.w){
-      viewOffsetX = clamp(viewOffsetX, 0, A4.w - vw);
-    }else{
-      viewOffsetX = (A4.w - vw)/2;
-    }
-    if (vh <= A4.h){
-      viewOffsetY = clamp(viewOffsetY, 0, A4.h - vh);
-    }else{
-      viewOffsetY = (A4.h - vh)/2;
-    }
-  }
-  function applyViewRedraw(){ drawPauta(); drawGuide(); redrawDrawLayer(); }
+  // Zoom con foco en un punto de pantalla
+  function zoomAt(factor, clientX, clientY){
+    const rect = viewport.getBoundingClientRect();
+    const px = clientX - rect.left;
+    const py = clientY - rect.top;
+    const old = scale;
+    const next = Math.min(6, Math.max(0.2, old*factor));
+    if(next===old) return;
 
-  function zoomBy(factor, focusDocX=A4.w/2, focusDocY=A4.h/2){
-    const old=viewScale, next=clamp(old*factor,0.3,4); if(next===old) return;
-    const screenX=(focusDocX-viewOffsetX)*old, screenY=(focusDocY-viewOffsetY)*old;
-    viewScale=next;
-    viewOffsetX=focusDocX - screenX/viewScale;
-    viewOffsetY=focusDocY - screenY/viewScale;
-    clampView();
-    applyViewRedraw();
+    // Mantener el punto bajo el cursor
+    const dx = (px - tx) / old;
+    const dy = (py - ty) / old;
+    scale = next;
+    tx = px - dx*scale;
+    ty = py - dy*scale;
+    applyTransform();
   }
-  zoomInBtn.onclick=()=>zoomBy(1.15);
-  zoomOutBtn.onclick=()=>zoomBy(1/1.15);
-  zoomResetBtn.onclick=()=>{viewScale=1; viewOffsetX=0; viewOffsetY=0; clampView(); applyViewRedraw();};
 
-  // Pan
-  let panning=false, panStart={x:0,y:0}, startOff={x:0,y:0};
-  paper.addEventListener('pointerdown', e=>{
+  zoomInBtn.onclick = ()=> zoomAt(1.15, viewport.clientWidth/2 + viewport.getBoundingClientRect().left, viewport.clientHeight/2 + viewport.getBoundingClientRect().top);
+  zoomOutBtn.onclick= ()=> zoomAt(1/1.15, viewport.clientWidth/2 + viewport.getBoundingClientRect().left, viewport.clientHeight/2 + viewport.getBoundingClientRect().top);
+  zoomResetBtn.onclick= fitToViewport;
+
+  // Pan (sobre el wrapper)
+  let panning=false, panStart={x:0,y:0}, startT={x:0,y:0};
+  viewport.addEventListener('pointerdown', e=>{
     if(!panMode.checked) return;
-    panning=true; panStart={x:e.clientX,y:e.clientY}; startOff={x:viewOffsetX,y:viewOffsetY};
-    paper.setPointerCapture?.(e.pointerId); e.preventDefault();
+    panning=true; panStart={x:e.clientX,y:e.clientY}; startT={x:tx,y:ty};
+    viewport.setPointerCapture?.(e.pointerId);
+    e.preventDefault();
   });
-  paper.addEventListener('pointermove', e=>{
+  viewport.addEventListener('pointermove', e=>{
     if(!panning) return;
-    const dx=(e.clientX-panStart.x)/viewScale, dy=(e.clientY-panStart.y)/viewScale;
-    viewOffsetX=startOff.x - dx; viewOffsetY=startOff.y - dy;
-    clampView();
-    applyViewRedraw();
+    tx = startT.x + (e.clientX - panStart.x);
+    ty = startT.y + (e.clientY - panStart.y);
+    applyTransform();
   });
-  const endPan=e=>{ if(!panning) return; panning=false; try{paper.releasePointerCapture(e.pointerId);}catch{} };
-  paper.addEventListener('pointerup', endPan);
-  paper.addEventListener('pointercancel', endPan);
-  paper.addEventListener('pointerleave', endPan);
+  const endPan=e=>{ if(!panning) return; panning=false; try{viewport.releasePointerCapture(e.pointerId);}catch{} };
+  viewport.addEventListener('pointerup', endPan);
+  viewport.addEventListener('pointercancel', endPan);
+  viewport.addEventListener('pointerleave', endPan);
 
   // Ctrl + rueda = zoom al cursor
   document.addEventListener('wheel', e=>{
     if(!e.ctrlKey) return;
     e.preventDefault();
-    const r=pauta.getBoundingClientRect();
-    const xCanvas=(e.clientX-r.left)*(pauta.width/r.width);
-    const yCanvas=(e.clientY-r.top) *(pauta.height/r.height);
-    const fx = xCanvas/viewScale + viewOffsetX;
-    const fy = yCanvas/viewScale + viewOffsetY;
-    zoomBy(e.deltaY>0?1/1.08:1.08, fx, fy);
+    zoomAt(e.deltaY>0?1/1.08:1.08, e.clientX, e.clientY);
   }, {passive:false});
 
-  // ===== Tamaño hoja =====
+  // ===== Tamaño y buffers =====
   function sizePaper(){
     cvs.forEach(cv=>{
       cv.width=A4.w; cv.height=A4.h;
@@ -347,93 +353,90 @@
     ctx.setTransform(1,0,0,1,0,0);
     ctx.clearRect(0,0,pauta.width,pauta.height);
 
-    /* IMPORTANTE: canvas SIEMPRE BLANCO (así jamás asoma gris) */
+    // Fondo del canvas SIEMPRE blanco
     ctx.fillStyle='#fff';
     ctx.fillRect(0,0,pauta.width,pauta.height);
 
-    withView(ctx, (cv)=>{
-      // Sombra del folio
-      cv.save();
-      roundedRectPath(cv, 0,0, A4.w,A4.h, RADIUS);
-      cv.shadowColor='var(--paper-shadow)';
-      cv.shadowBlur=12*DPR; cv.shadowOffsetY=4*DPR;
-      cv.fillStyle='rgba(0,0,0,0.001)'; cv.fill();
-      cv.restore();
+    // Sombra del folio
+    ctx.save();
+    roundedRectPath(ctx, 0,0, A4.w,A4.h, RADIUS);
+    ctx.shadowColor='rgba(0,0,0,.15)'; ctx.shadowBlur=12*DPR; ctx.shadowOffsetY=4*DPR;
+    ctx.fillStyle='rgba(0,0,0,0.001)'; ctx.fill();
+    ctx.restore();
 
-      // Fondo blanco + borde del folio
-      roundedRectPath(cv, 0,0, A4.w,A4.h, RADIUS);
-      cv.fillStyle='#fff'; cv.fill();
-      cv.lineWidth=1*DPR; cv.strokeStyle='rgba(0,0,0,.06)'; cv.stroke();
+    // Fondo blanco + borde del folio
+    roundedRectPath(ctx, 0,0, A4.w,A4.h, RADIUS);
+    ctx.fillStyle='#fff'; ctx.fill();
+    ctx.lineWidth=1*DPR; ctx.strokeStyle='rgba(0,0,0,.06)'; ctx.stroke();
 
-      // Clip al folio
-      roundedRectPath(cv, 0,0, A4.w,A4.h, RADIUS); cv.clip();
+    // Clip al folio
+    roundedRectPath(ctx, 0,0, A4.w,A4.h, RADIUS); ctx.clip();
 
-      const step=mm2px(parseFloat(stepSel.value));
-      const top=20*DPR;
-      const period=step*4.6;
-      const marginPx=mm2px(parseFloat(margenSel.value)||0);
+    const step=mm2px(parseFloat(stepSel.value));
+    const top=20*DPR;
+    const period=step*4.6;
+    const marginPx=mm2px(parseFloat(margenSel.value)||0);
 
-      const mode=colorSel.value;
-      const base=(mode==='suave')?'#f87171':(mode==='alto')?'#dc2626':'var(--base)';
-      const sec =(mode==='suave')?'#93c5fd':(mode==='alto')?'#1d4ed8':'var(--sec)';
-      const marginC=(mode==='suave')?'#22c55e':(mode==='alto')?'#16a34a':'var(--margin)';
+    const mode=colorSel.value;
+    const base=(mode==='suave')?'#f87171':(mode==='alto')?'#dc2626':'var(--base)';
+    const sec =(mode==='suave')?'#93c5fd':(mode==='alto')?'#1d4ed8':'var(--sec)';
+    const marginC=(mode==='suave')?'#22c55e':(mode==='alto')?'#16a34a':'var(--margin)';
 
-      pauta.dataset.topPad=String(top);
-      pauta.dataset.step=String(step);
-      pauta.dataset.period=String(period);
-      pauta.dataset.margin=String(marginPx);
+    pauta.dataset.topPad=String(top);
+    pauta.dataset.step=String(step);
+    pauta.dataset.period=String(period);
+    pauta.dataset.margin=String(marginPx);
 
-      // Cuadrícula vertical desde el margen
-      if(showGrid.checked){
-        cv.save();
-        cv.globalAlpha=0.15;
-        cv.lineWidth=Math.max(0.75*DPR,0.5*DPR);
-        let x=Math.max(0,marginPx);
-        while(x<A4.w-1){ strokeV(cv,x,cv.lineWidth,sec); x+=step; }
-        cv.restore();
+    // Cuadrícula vertical desde el margen
+    if(showGrid.checked){
+      ctx.save();
+      ctx.globalAlpha=0.15;
+      ctx.lineWidth=Math.max(0.75*DPR,0.5*DPR);
+      let x=Math.max(0,marginPx);
+      while(x<A4.w-1){ strokeV(ctx,x,ctx.lineWidth,sec); x+=step; }
+      ctx.restore();
+    }
+
+    // Pauta horizontal
+    if(showPauta.checked){
+      let y=top;
+      while(y<pauta.height-top){
+        strokeH(ctx,y,1*DPR,sec); y+=step;        // ascendente
+        strokeH(ctx,y,1*DPR,sec); y+=step;        // techo
+        strokeH(ctx,y,1.5*DPR,base); y+=step;     // base roja
+        strokeH(ctx,y,1*DPR,sec); y+=step*1.6;    // descendente + espacio
       }
+    }
 
-      // Pauta horizontal
-      if(showPauta.checked){
-        let y=top;
-        while(y<pauta.height-top){
-          strokeH(cv,y,1*DPR,sec); y+=step;        // ascendente
-          strokeH(cv,y,1*DPR,sec); y+=step;        // techo
-          strokeH(cv,y,1.5*DPR,base); y+=step;     // base roja
-          strokeH(cv,y,1*DPR,sec); y+=step*1.6;    // descendente + espacio
-        }
-      }
+    // Margen vertical
+    if(marginPx>0){
+      ctx.beginPath(); ctx.moveTo(marginPx,0); ctx.lineTo(marginPx,pauta.height);
+      ctx.lineWidth=2*DPR; ctx.strokeStyle=marginC; ctx.stroke();
+    }
 
-      // Margen vertical
-      if(marginPx>0){
-        cv.beginPath(); cv.moveTo(marginPx,0); cv.lineTo(marginPx,pauta.height);
-        cv.lineWidth=2*DPR; cv.strokeStyle=marginC; cv.stroke();
-      }
+    // Agujeros (troquel)
+    const pitch=mm2px(parseFloat(getComputedStyle(document.documentElement).getPropertyValue('--pitch-mm'))||12);
+    const holeR=mm2px(parseFloat(getComputedStyle(document.documentElement).getPropertyValue('--holeD-mm'))||4.2)/2;
+    const offset=mm2px(parseFloat(getComputedStyle(document.documentElement).getPropertyValue('--offset-mm'))||5.0);
+    const topPad=mm2px(12);
+    const cx = (ringSideSel.value==='left') ? offset : (A4.w - offset);
 
-      // Agujeros (troquel)
-      const pitch=mm2px(parseFloat(getComputedStyle(document.documentElement).getPropertyValue('--pitch-mm'))||12);
-      const holeR=mm2px(parseFloat(getComputedStyle(document.documentElement).getPropertyValue('--holeD-mm'))||4.2)/2;
-      const offset=mm2px(parseFloat(getComputedStyle(document.documentElement).getPropertyValue('--offset-mm'))||5.0);
-      const topPad=mm2px(12);
-      const cx = (ringSideSel.value==='left') ? offset : (A4.w - offset);
+    // “Quitar” papel (perforar)
+    ctx.save();
+    ctx.globalCompositeOperation='destination-out';
+    for(let y=topPad; y<=A4.h-topPad; y+=pitch){
+      ctx.beginPath(); ctx.arc(cx,y,holeR,0,Math.PI*2); ctx.fill();
+    }
+    ctx.restore();
 
-      // “Quitar” papel (perforar)
-      cv.save();
-      cv.globalCompositeOperation='destination-out';
-      for(let y=topPad; y<=A4.h-topPad; y+=pitch){
-        cv.beginPath(); cv.arc(cx,y,holeR,0,Math.PI*2); cv.fill();
-      }
-      cv.restore();
-
-      // contorno + viñeteado
-      for(let y=topPad; y<=A4.h-topPad; y+=pitch){
-        cv.beginPath(); cv.arc(cx,y,Math.max(holeR-0.25*DPR,0),0,Math.PI*2);
-        cv.lineWidth=0.75*DPR; cv.strokeStyle='rgba(0,0,0,.45)'; cv.globalAlpha=0.35; cv.stroke();
-        const g=cv.createRadialGradient(cx,y, holeR*0.55, cx,y, holeR);
-        g.addColorStop(0,'rgba(0,0,0,0)'); g.addColorStop(1,'rgba(0,0,0,.08)');
-        cv.beginPath(); cv.arc(cx,y,holeR,0,Math.PI*2); cv.fillStyle=g; cv.fill();
-      }
-    });
+    // contorno + viñeteado
+    for(let y=topPad; y<=A4.h-topPad; y+=pitch){
+      ctx.beginPath(); ctx.arc(cx,y,Math.max(holeR-0.25*DPR,0),0,Math.PI*2);
+      ctx.lineWidth=0.75*DPR; ctx.strokeStyle='rgba(0,0,0,.45)'; ctx.globalAlpha=0.35; ctx.stroke();
+      const g=ctx.createRadialGradient(cx,y, holeR*0.55, cx,y, holeR);
+      g.addColorStop(0,'rgba(0,0,0,0)'); g.addColorStop(1,'rgba(0,0,0,.08)');
+      ctx.beginPath(); ctx.arc(cx,y,holeR,0,Math.PI*2); ctx.fillStyle=g; ctx.fill();
+    }
   }
 
   // ===== Guía =====
@@ -449,16 +452,16 @@
   function stepPx(){ return +pauta.dataset.step || mm2px(+stepSel.value); }
   function startTextX(){ const m=marginXpx(); return (m>0?m:0)+stepPx(); }
 
-  function drawHeaderLine(cv){
+  function drawHeaderLine(ctx){
     const header=getHeaderText();
     const fontPx=Math.max(48*DPR, (+ghostSize.value)*0.55*DPR);
-    cv.font=`normal ${fontPx}px "EscolarG", system-ui, sans-serif`;
-    cv.textBaseline='alphabetic';
-    cv.fillStyle='rgba(17,24,39,.40)';
-    cv.strokeStyle='rgba(107,114,128,.55)';
-    cv.lineWidth=Math.max(1,Math.round(fontPx*0.06));
-    cv.fillText(header, startTextX(), firstBaseLineY());
-    cv.strokeText(header, startTextX(), firstBaseLineY());
+    ctx.font=`normal ${fontPx}px "EscolarG", system-ui, sans-serif`;
+    ctx.textBaseline='alphabetic';
+    ctx.fillStyle='rgba(17,24,39,.40)';
+    ctx.strokeStyle='rgba(107,114,128,.55)';
+    ctx.lineWidth=Math.max(1,Math.round(fontPx*0.06));
+    ctx.fillText(header, startTextX(), firstBaseLineY());
+    ctx.strokeText(header, startTextX(), firstBaseLineY());
   }
 
   function drawGuide(){
@@ -466,77 +469,73 @@
     ctx.setTransform(1,0,0,1,0,0);
     ctx.clearRect(0,0,ghost.width,ghost.height);
 
-    withView(ctx, (cv)=>{
-      roundedRectPath(cv, 0,0, A4.w,A4.h, RADIUS); cv.save(); cv.clip();
+    // Clip al folio
+    roundedRectPath(ctx, 0,0, A4.w,A4.h, RADIUS); ctx.save(); ctx.clip();
 
-      drawHeaderLine(cv);
+    drawHeaderLine(ctx);
 
-      const txt=currentGuideText(); if(!txt) { cv.restore(); return; }
-      const fontPx=(+ghostSize.value)*DPR;
-      cv.font=`normal ${fontPx}px "EscolarG", system-ui, sans-serif`;
-      cv.textBaseline='alphabetic';
-      cv.fillStyle='rgba(17,24,39,.28)';
-      cv.strokeStyle='rgba(107,114,128,.6)';
-      cv.lineWidth=Math.max(1,Math.round(fontPx*0.06));
+    const txt=currentGuideText(); if(!txt) { ctx.restore(); return; }
+    const fontPx=(+ghostSize.value)*DPR;
+    ctx.font=`normal ${fontPx}px "EscolarG", system-ui, sans-serif`;
+    ctx.textBaseline='alphabetic';
+    ctx.fillStyle='rgba(17,24,39,.28)';
+    ctx.strokeStyle='rgba(107,114,128,.6)';
+    ctx.lineWidth=Math.max(1,Math.round(fontPx*0.06));
 
-      const baseY=baseLineForGuide();
-      if(inlineWord.checked){
-        let x=startTextX();
-        for(const ch of txt){
-          cv.fillText(ch,x,baseY);
-          cv.strokeText(ch,x,baseY);
-          x += cv.measureText(ch).width + fontPx*0.12;
-        }
-      }else{
-        const total=cv.measureText(txt).width;
-        cv.fillText(txt,(A4.w-total)/2,baseY);
-        cv.strokeText(txt,(A4.w-total)/2,baseY);
+    const baseY=baseLineForGuide();
+    if(inlineWord.checked){
+      let x=startTextX();
+      for(const ch of txt){
+        ctx.fillText(ch,x,baseY);
+        ctx.strokeText(ch,x,baseY);
+        x += ctx.measureText(ch).width + fontPx*0.12;
       }
-      cv.restore();
-    });
+    }else{
+      const total=ctx.measureText(txt).width;
+      ctx.fillText(txt,(A4.w-total)/2,baseY);
+      ctx.strokeText(txt,(A4.w-total)/2,baseY);
+    }
+    ctx.restore();
   }
 
-  // ===== Dibujo libre =====
+  // ===== Dibujo libre (grosor constante con zoom CSS) =====
   const dctx=draw.getContext('2d'); dctx.lineCap='round'; dctx.lineJoin='round';
   let drawing=false, points=[]; const history=[]; let redoStack=[];
 
   function toolMode(){ return (toolSel.value==='eraser')?'destination-out':'source-over'; }
-  function pointerDocPos(e){
-    const r=draw.getBoundingClientRect();
-    const xCanvas=(e.clientX-r.left)*(draw.width/r.width);
-    const yCanvas=(e.clientY-r.top) *(draw.height/r.height);
-    return { x:xCanvas/viewScale + viewOffsetX, y:yCanvas/viewScale + viewOffsetY };
+
+  // Mapear puntero -> coords del canvas teniendo en cuenta el transform CSS
+  function pointerCanvasPos(e){
+    const r = draw.getBoundingClientRect(); // YA incluye translate+scale
+    const x = (e.clientX - r.left) * (draw.width / r.width);
+    const y = (e.clientY - r.top)  * (draw.height / r.height);
+    return {x, y};
   }
 
   function startDraw(e){
     if(panMode.checked) return;
     e.preventDefault(); drawing=true; redoStack.length=0;
     try{ draw.setPointerCapture(e.pointerId); }catch{}
-    points=[pointerDocPos(e)];
+    const p0=pointerCanvasPos(e); points=[p0];
     dctx.save(); dctx.globalCompositeOperation=toolMode();
-    const size=(+penSize.value)*DPR;
-    withView(dctx, (cv)=>{
-      cv.beginPath(); cv.arc(points[0].x,points[0].y,(size/2)/viewScale,0,Math.PI*2);
-      cv.fillStyle='#111'; cv.fill();
-    });
+    const size=(+penSize.value)*DPR/scale; // compensar zoom CSS
+    dctx.beginPath(); dctx.arc(p0.x,p0.y,(size/2),0,Math.PI*2); dctx.fillStyle='#111'; dctx.fill();
   }
   function moveDraw(e){
     if(!drawing || panMode.checked) return;
-    const p=pointerDocPos(e);
+    const p=pointerCanvasPos(e);
     const prev=points[points.length-1];
     points.push(p);
-    const size=(+penSize.value)*DPR;
-    withView(dctx, (cv)=>{
-      cv.beginPath();
-      cv.moveTo(prev.x,prev.y);
-      cv.quadraticCurveTo(prev.x,prev.y,(prev.x+p.x)/2,(prev.y+p.y)/2);
-      cv.lineWidth=size/viewScale; cv.strokeStyle='#111'; cv.stroke();
-    });
+    const size=(+penSize.value)*DPR/scale; // compensar zoom CSS
+    dctx.beginPath();
+    dctx.moveTo(prev.x,prev.y);
+    dctx.quadraticCurveTo(prev.x,prev.y,(prev.x+p.x)/2,(prev.y+p.y)/2);
+    dctx.lineWidth=size; dctx.strokeStyle='#111'; dctx.stroke();
   }
   function endDraw(e){
     if(!drawing) return;
     drawing=false;
-    const size=(+penSize.value)*DPR;
+    const size=(+penSize.value)*DPR; // guardamos en “tamaño documento” (sin dividir)
     history.push([{mode:toolMode(), size, color:'#111', path:points.slice()}]);
     dctx.restore();
     try{ draw.releasePointerCapture(e?.pointerId); }catch{}
@@ -548,30 +547,26 @@
   function redrawDrawLayer(){
     dctx.setTransform(1,0,0,1,0,0);
     dctx.clearRect(0,0,draw.width,draw.height);
-    withView(dctx, (cv)=>{
-      roundedRectPath(cv, 0,0, A4.w,A4.h, RADIUS); cv.save(); cv.clip();
-
-      const strokes=history.flat();
-      strokes.forEach(s=>{
-        cv.save(); cv.globalCompositeOperation=s.mode;
-        if(s.path.length===1){
-          const p=s.path[0];
-          cv.beginPath(); cv.arc(p.x,p.y,(s.size/2)/viewScale,0,Math.PI*2);
-          cv.fillStyle=s.color; cv.fill();
-        }else{
-          cv.beginPath();
-          for(let i=0;i<s.path.length-1;i++){
-            const a=s.path[i], b=s.path[i+1];
-            if(i===0) cv.moveTo(a.x,a.y);
-            cv.quadraticCurveTo(a.x,a.y,(a.x+b.x)/2,(a.y+b.y)/2);
-          }
-          cv.lineWidth=s.size/viewScale; cv.strokeStyle=s.color; cv.stroke();
+    const strokes=history.flat();
+    strokes.forEach(s=>{
+      dctx.save(); dctx.globalCompositeOperation=s.mode;
+      if(s.path.length===1){
+        const p=s.path[0];
+        dctx.beginPath(); dctx.arc(p.x,p.y,(s.size/2)/scale,0,Math.PI*2); // compensación zoom CSS
+        dctx.fillStyle=s.color; dctx.fill();
+      }else{
+        dctx.beginPath();
+        for(let i=0;i<s.path.length-1;i++){
+          const a=s.path[i], b=s.path[i+1];
+          if(i===0) dctx.moveTo(a.x,a.y);
+          dctx.quadraticCurveTo(a.x,a.y,(a.x+b.x)/2,(a.y+b.y)/2);
         }
-        cv.restore();
-      });
-      cv.restore();
+        dctx.lineWidth=s.size/scale; dctx.strokeStyle=s.color; dctx.stroke();
+      }
+      dctx.restore();
     });
   }
+
   undoBtn.onclick=()=>{ if(!history.length) return; redoStack.push(history.pop()); redrawDrawLayer(); };
   redoBtn.onclick=()=>{ if(!redoStack.length) return; history.push(redoStack.pop()); redrawDrawLayer(); };
   clearBtn.onclick=()=>{ history.length=0; redoStack.length=0; redrawDrawLayer(); };
@@ -584,6 +579,7 @@
     const off=document.createElement('canvas'); off.width=A4.w; off.height=A4.h;
     const o=off.getContext('2d');
 
+    // Página limpia
     roundedRectPath(o, 0,0, A4.w,A4.h, RADIUS); o.save(); o.clip();
     o.fillStyle='#fff'; o.fillRect(0,0,off.width,off.height);
 
@@ -729,24 +725,39 @@
 
   // Eventos y arranque
   function redrawAll(){ drawPauta(); drawGuide(); redrawDrawLayer(); }
-  [stepSel,margenSel,colorSel,showPauta,showGrid].forEach(el=>el.addEventListener('change',()=>{clampView(); redrawAll();}));
-  redrawBtn.onclick=()=>{clampView(); redrawAll();};
+  [stepSel,margenSel,colorSel,showPauta,showGrid,ringSideSel].forEach(el=>el.addEventListener('change',redrawAll));
+  redrawBtn.onclick=redrawAll;
   ghostSelect.addEventListener('change',()=>{
     const v=ghostSelect.value;
     ghostText.style.display=(v==='__custom__')?'inline-block':'none';
-    ghostShow.checked=(v!=='__none__'); clampView(); redrawAll();
+    ghostShow.checked=(v!=='__none__'); redrawAll();
   });
-  [ghostText,ghostSize,ghostShow,inlineWord,viaIndex].forEach(el=>el.addEventListener('input',()=>{clampView(); redrawAll();}));
-  ringSideSel.addEventListener('change', ()=>{clampView(); redrawAll();});
+  [ghostText,ghostSize,ghostShow,inlineWord,viaIndex].forEach(el=>el.addEventListener('input',redrawAll));
 
   (async ()=>{
     cvs.forEach(cv=>{ cv.width=A4.w; cv.height=A4.h; cv.style.width=px2css(A4.w); cv.style.height=px2css(A4.h); });
     paper.style.width=px2css(A4.w); paper.style.height=px2css(A4.h);
-    clampView();
     await waitEscolar();
     redrawAll();
+    fitToViewport(); // ← ocupa todo el viewport al iniciar
   })();
-  window.addEventListener('resize', ()=>{ cvs.forEach(cv=>{ cv.width=A4.w; cv.height=A4.h; cv.style.width=px2css(A4.w); cv.style.height=px2css(A4.h); }); clampView(); redrawAll(); }, {passive:true});
+
+  window.addEventListener('resize', ()=>{ 
+    // reencajar a viewport cuando cambie el tamaño disponible
+    fitToViewport();
+  }, {passive:true});
+
+  // Helpers geom
+  function roundedRectPath(ctx,x,y,w,h,r){
+    const rr=Math.min(r, w/2, h/2);
+    ctx.beginPath();
+    ctx.moveTo(x+rr,y);
+    ctx.arcTo(x+w,y, x+w,y+h, rr);
+    ctx.arcTo(x+w,y+h, x,y+h, rr);
+    ctx.arcTo(x,y+h, x,y, rr);
+    ctx.arcTo(x,y, x+w,y, rr);
+    ctx.closePath();
+  }
 })();
 </script>
 </body>
